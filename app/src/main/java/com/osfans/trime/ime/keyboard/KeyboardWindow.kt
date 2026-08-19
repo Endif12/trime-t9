@@ -73,6 +73,9 @@ class KeyboardWindow :
 
     private val presetKeyboardIds = theme.presetKeyboards.keys.toList()
     private var currentKeyboardId = ""
+
+    val isT9Keyboard: Boolean
+        get() = currentKeyboardId == "t9"
     private var lastKeyboardId = ""
     private var lastLockKeyboardId = ""
     private var tempAsciiMode: Boolean? = null
@@ -284,6 +287,7 @@ class KeyboardWindow :
     }
 
     override fun onRimeSchemaUpdated(schema: SchemaItem) {
+        service.t9InputController.clear()
         switchKeyboard(".default")
     }
 

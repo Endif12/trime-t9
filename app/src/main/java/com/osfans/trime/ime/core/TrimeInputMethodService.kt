@@ -49,6 +49,8 @@ import com.osfans.trime.data.theme.Theme
 import com.osfans.trime.data.theme.ThemeManager
 import com.osfans.trime.ime.composition.CandidatesView
 import com.osfans.trime.ime.keyboard.InputFeedbackManager
+import com.osfans.trime.ime.t9.T9InputController
+import com.osfans.trime.ime.keyboard.InputFeedbackManager
 import com.osfans.trime.receiver.RimeIntentReceiver
 import com.osfans.trime.util.any
 import com.osfans.trime.util.findSectionFrom
@@ -67,6 +69,9 @@ import splitties.systemservices.inputMethodManager
 import timber.log.Timber
 
 /** [輸入法][InputMethodService]主程序  */
+
+lateinit var t9InputController: T9InputController
+    private set
 
 open class TrimeInputMethodService : LifecycleInputMethodService() {
     private lateinit var rime: RimeSession
@@ -172,6 +177,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
 
     override fun onCreate() {
         rime = RimeDaemon.createSession(javaClass.name)
+        t9InputController = T9InputController(rime)
         lifecycleScope.launch {
             jobs.consumeEach { it.join() }
         }
@@ -280,7 +286,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
     }
 
     private fun replaceCandidateView(theme: Theme): CandidatesView {
-        val newCandidatesView = CandidatesView(this, rime, theme)
+        val newCandidatesView = CandidatesView(this, rime, theme, t9InputController)
         contentView.removeView(candidatesView)
         contentView.addView(newCandidatesView)
         inputDeviceManager.setCandidatesView(newCandidatesView)
@@ -296,6 +302,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
     }
 
     override fun onDestroy() {
+        t9InputController.destroy()
         InputFeedbackManager.destroy()
         inputView = null
         recreateInputViewPrefs.forEach {

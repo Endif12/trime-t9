@@ -364,6 +364,36 @@ class CommonKeyboardActionListener {
                 keyEventCode: Int,
                 metaState: Int,
             ) {
+                if (keyboardWindow.isT9Keyboard) {
+                    when (keyEventCode) {
+                        in KeyEvent.KEYCODE_2..KeyEvent.KEYCODE_9 -> {
+                            val digit = (keyEventCode - KeyEvent.KEYCODE_0).toString()
+                            service.t9InputController.onDigitKey(digit)
+
+                            Toast.makeText(
+                                service,
+                                "T9 digit=$digit candidates=${service.t9InputController.computeCandidates().size}",
+                                Toast.LENGTH_SHORT,
+                            ).show()
+
+                            return
+                        }
+
+                        KeyEvent.KEYCODE_DEL -> {
+                            if (service.t9InputController.onBackspace()) {
+                                return
+                            }
+                        }
+
+                        KeyEvent.KEYCODE_APOSTROPHE -> {
+                            if (!service.t9InputController.onSegmentKey()) {
+                                return
+                            }
+                        }
+                    }
+                }
+
+                val name = KeyCode.codeToKeyName(keyEventCode) ?: "VoidSymbol"
                 // An uppercase letter key (e.g. from `{x: A}`) is passed to
                 // rime as the uppercase keysym with Shift, matching what a
                 // physical keyboard reports via the unicode char, so that
@@ -407,6 +437,13 @@ class CommonKeyboardActionListener {
 
             override fun onText(input: String) {
                 if (input.isEmpty()) return
+                if (keyboardWindow.isT9Keyboard &&
+                    input.length == 1 &&
+                    input[0] in '2'..'9'
+                ) {
+                    service.t9InputController.onDigitKey(input)
+                    return
+                }
                 Timber.d("onText: $input")
                 val status = rime.run { statusCached }
                 if (!input[0].isAsciiPrintable() && status.isComposing) {

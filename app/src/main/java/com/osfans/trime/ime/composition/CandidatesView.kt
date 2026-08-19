@@ -45,12 +45,15 @@ import splitties.views.horizontalPadding
 import splitties.views.setPaddingDp
 import splitties.views.verticalPadding
 import kotlin.math.roundToInt
+import com.osfans.trime.ime.t9.T9InputController
+import com.osfans.trime.ime.t9.T9PinyinView
 
 @SuppressLint("ViewConstructor")
 class CandidatesView(
     service: TrimeInputMethodService,
     rime: RimeSession,
     theme: Theme,
+    private val t9InputController: T9InputController,
 ) : BaseInputView(service, rime, theme) {
     private val ctx = context.withTheme(android.R.style.Theme_DeviceDefault_Settings)
 
@@ -95,6 +98,21 @@ class CandidatesView(
             onMoveCursor = { pos -> rime.launchOnReady { it.moveCursorPos(pos) } },
         )
 
+    private val t9PinyinUi =
+        T9PinyinView(
+            ctx,
+            theme,
+        ).apply {
+            visibility = GONE
+
+            setOnPinyinSelectedListener { token ->
+                t9InputController.onSelectPinyin(
+                    token.pos,
+                    token.raw,
+                    token.pinYin,
+                )
+            }
+        }
     private val candidatesUi =
         PagedCandidatesUi(
             ctx,
@@ -124,7 +142,8 @@ class CandidatesView(
     }
 
     private fun evaluateVisibility(): Boolean = !composition.preedit.isNullOrEmpty() ||
-        candidates.candidates.isNotEmpty()
+        candidates.candidates.isNotEmpty() ||
+        t9PinyinUi.visibility == VISIBLE
 
     private fun updateUi() {
         preeditUi.update(composition)
@@ -209,6 +228,18 @@ class CandidatesView(
     }
 
     init {
+        t9InputController.onCandidatesChanged = { tokens ->
+            post {
+                t9PinyinUi.updateItems(tokens)
+
+                if (tokens.isEmpty()) {
+                    updateUi()
+                } else {
+                    visibility = VISIBLE
+                }
+            }
+        }
+
         visibility = INVISIBLE
 
         minWidth = dp(theme.window.minWidth)
@@ -233,7 +264,15 @@ class CandidatesView(
             },
         )
         add(
-            candidatesUi.root,
+            t9PinyinUi,
+            lParams(matchConstraints, wrapContent) {
+                below(preeditUi.root)
+                startOfParent()
+                endOfParent()
+            },
+        )
+        add(
+            below(t9PinyinUi)
             lParams(matchConstraints, wrapContent) {
                 matchConstraintMinWidth = wrapContent
                 below(preeditUi.root)
