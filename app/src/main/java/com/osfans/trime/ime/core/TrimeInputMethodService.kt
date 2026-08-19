@@ -69,11 +69,11 @@ import timber.log.Timber
 
 /** [輸入法][InputMethodService]主程序  */
 
-lateinit var t9InputController: T9InputController
-    private set
-
 open class TrimeInputMethodService : LifecycleInputMethodService() {
     private lateinit var rime: RimeSession
+
+    lateinit var t9InputController: T9InputController
+        private set
     private val jobs = Channel<Job>(capacity = Channel.UNLIMITED)
 
     private val prefs = AppPrefs.defaultInstance()
