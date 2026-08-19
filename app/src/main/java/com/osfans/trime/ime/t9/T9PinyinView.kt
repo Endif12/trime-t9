@@ -99,6 +99,9 @@ class T9PinyinView(
                 container.addView(createDivider())
             }
         }
+
+        container.requestLayout()
+        requestLayout()
     }
 
     private fun createItem(
