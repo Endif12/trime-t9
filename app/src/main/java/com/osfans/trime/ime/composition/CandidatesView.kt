@@ -264,6 +264,14 @@ class CandidatesView(
             },
         )
         add(
+            t9PinyinUi,
+            lParams(matchConstraints, wrapContent) {
+                below(preeditUi.root)
+                startOfParent()
+                endOfParent()
+            },
+        )
+        add(
             candidatesUi.root,
             lParams(matchConstraints, wrapContent) {
                 matchConstraintMinWidth = wrapContent
