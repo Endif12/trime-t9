@@ -54,7 +54,6 @@ class CandidatesView(
     service: TrimeInputMethodService,
     rime: RimeSession,
     theme: Theme,
-    private val t9InputController: T9InputController,
 ) : BaseInputView(service, rime, theme) {
     private val ctx = context.withTheme(android.R.style.Theme_DeviceDefault_Settings)
 
@@ -99,21 +98,6 @@ class CandidatesView(
             onMoveCursor = { pos -> rime.launchOnReady { it.moveCursorPos(pos) } },
         )
 
-    private val t9PinyinUi =
-        T9PinyinView(
-            ctx,
-            theme,
-        ).apply {
-            visibility = GONE
-
-            setOnPinyinSelectedListener { token ->
-                t9InputController.onSelectPinyin(
-                    token.pos,
-                    token.raw,
-                    token.pinYin,
-                )
-            }
-        }
     private val candidatesUi =
         PagedCandidatesUi(
             ctx,
@@ -145,8 +129,6 @@ class CandidatesView(
     private fun evaluateVisibility(): Boolean = !composition.preedit.isNullOrEmpty() ||
         candidates.candidates.isNotEmpty() ||
         hasT9PinyinCandidates
-
-    private var hasT9PinyinCandidates = false
 
     private fun updateUi() {
         preeditUi.update(composition)
@@ -231,16 +213,6 @@ class CandidatesView(
     }
 
     init {
-        t9InputController.onCandidatesChanged = { tokens ->
-            post {
-                hasT9PinyinCandidates = tokens.isNotEmpty()
-                t9PinyinUi.updateItems(tokens)
-                updateUi()
-                requestLayout()
-                invalidate()
-            }
-        }
-
         visibility = INVISIBLE
 
         minWidth = dp(theme.window.minWidth)

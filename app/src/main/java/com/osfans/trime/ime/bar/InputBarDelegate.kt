@@ -19,6 +19,7 @@ import androidx.annotation.Keep
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import android.widget.LinearLayout
 import com.osfans.trime.R
 import com.osfans.trime.core.Candidates
 import com.osfans.trime.core.RimeMessage
@@ -32,6 +33,7 @@ import com.osfans.trime.data.theme.Theme
 import com.osfans.trime.ime.bar.ui.AlwaysUi
 import com.osfans.trime.ime.bar.ui.CandidateUi
 import com.osfans.trime.ime.bar.ui.TabUi
+import com.osfans.trime.ime.t9.T9PinyinView
 import com.osfans.trime.ime.broadcast.InputBroadcastReceiver
 import com.osfans.trime.ime.candidates.compact.CompactCandidateDelegate
 import com.osfans.trime.ime.candidates.unrolled.window.FlexboxUnrolledCandidateWindow
@@ -68,8 +70,28 @@ class InputBarDelegate : InputBroadcastReceiver {
     private val commonKeyboardActionListener: CommonKeyboardActionListener by di.instance()
     private val candidate: CompactCandidateDelegate by di.instance()
     private val rime: RimeSession by di.instance()
+    private val t9PinyinHeight = dp(32)
 
-    val themedHeight = theme.generalStyle.run { candidateViewHeight + commentHeight }
+    private val t9PinyinUi =
+        T9PinyinView(
+            context,
+            theme,
+        ).apply {
+            visibility = View.GONE
+
+            setOnPinyinSelectedListener { token ->
+                service.t9InputController.onSelectPinyin(
+                    token.pos,
+                    token.raw,
+                    token.pinYin,
+                )
+            }
+        }
+
+    private val baseThemedHeight =
+        theme.generalStyle.run { candidateViewHeight + commentHeight }
+
+    val themedHeight = baseThemedHeight + t9PinyinHeight
 
     private val prefs = AppPrefs.defaultInstance()
 
@@ -263,12 +285,34 @@ class InputBarDelegate : InputBroadcastReceiver {
                     dp(theme.generalStyle.candidateBorderRound),
                 )
             add(alwaysUi.root, lParams(matchParent, matchParent))
-            add(candidateUi.root, lParams(matchParent, matchParent))
+            add(candidateContainer, lParams(matchParent, matchParent))
             add(tabUi.root, lParams(matchParent, matchParent))
 
             evalAlwaysUiState()
             ClipboardHelper.addOnUpdateListener(onClipboardUpdateListener)
             syncToolbarOptionStates()
+        }
+    }
+
+    private val candidateContainer by lazy {
+        LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+
+            addView(
+                t9PinyinUi,
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    t9PinyinHeight,
+                ),
+            )
+
+            addView(
+                candidateUi.root,
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    baseThemedHeight,
+                ),
+            )
         }
     }
 
