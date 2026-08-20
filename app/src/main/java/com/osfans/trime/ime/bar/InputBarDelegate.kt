@@ -13,13 +13,13 @@ import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InlineSuggestion
 import android.view.inputmethod.InlineSuggestionsResponse
+import android.widget.LinearLayout
 import android.widget.ViewAnimator
 import android.widget.inline.InlineContentView
 import androidx.annotation.Keep
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
-import android.widget.LinearLayout
 import com.osfans.trime.R
 import com.osfans.trime.core.Candidates
 import com.osfans.trime.core.RimeMessage
@@ -33,7 +33,6 @@ import com.osfans.trime.data.theme.Theme
 import com.osfans.trime.ime.bar.ui.AlwaysUi
 import com.osfans.trime.ime.bar.ui.CandidateUi
 import com.osfans.trime.ime.bar.ui.TabUi
-import com.osfans.trime.ime.t9.T9PinyinView
 import com.osfans.trime.ime.broadcast.InputBroadcastReceiver
 import com.osfans.trime.ime.candidates.compact.CompactCandidateDelegate
 import com.osfans.trime.ime.candidates.unrolled.window.FlexboxUnrolledCandidateWindow
@@ -43,6 +42,7 @@ import com.osfans.trime.ime.keyboard.CommonKeyboardActionListener
 import com.osfans.trime.ime.keyboard.KeyBehavior
 import com.osfans.trime.ime.keyboard.KeyboardWindow
 import com.osfans.trime.ime.switches.SwitchOptionWindow
+import com.osfans.trime.ime.t9.T9PinyinView
 import com.osfans.trime.ime.window.BoardWindow
 import com.osfans.trime.ime.window.BoardWindowManager
 import com.osfans.trime.ui.main.ClipEditActivity
