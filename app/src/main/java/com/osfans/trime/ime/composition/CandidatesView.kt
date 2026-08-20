@@ -30,8 +30,6 @@ import com.osfans.trime.ime.candidates.popup.PagedCandidatesUi
 import com.osfans.trime.ime.core.BaseInputView
 import com.osfans.trime.ime.core.TouchEventReceiverWindow
 import com.osfans.trime.ime.core.TrimeInputMethodService
-import com.osfans.trime.ime.t9.T9InputController
-import com.osfans.trime.ime.t9.T9PinyinView
 import splitties.dimensions.dp
 import splitties.views.dsl.constraintlayout.below
 import splitties.views.dsl.constraintlayout.bottomOfParent
@@ -127,8 +125,7 @@ class CandidatesView(
     }
 
     private fun evaluateVisibility(): Boolean = !composition.preedit.isNullOrEmpty() ||
-        candidates.candidates.isNotEmpty() ||
-        hasT9PinyinCandidates
+        candidates.candidates.isNotEmpty()
 
     private fun updateUi() {
         preeditUi.update(composition)
@@ -237,18 +234,10 @@ class CandidatesView(
             },
         )
         add(
-            t9PinyinUi,
-            lParams(matchConstraints, wrapContent) {
-                below(preeditUi.root)
-                startOfParent()
-                endOfParent()
-            },
-        )
-        add(
             candidatesUi.root,
             lParams(matchConstraints, wrapContent) {
                 matchConstraintMinWidth = wrapContent
-                below(t9PinyinUi)
+                below(preeditUi.root)
                 centerHorizontally()
                 bottomOfParent()
             },

@@ -285,7 +285,8 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
     }
 
     private fun replaceCandidateView(theme: Theme): CandidatesView {
-        val newCandidatesView = CandidatesView(this, rime, theme, t9InputController)
+        val newCandidatesView =
+            CandidatesView(this, rime, theme)
         contentView.removeView(candidatesView)
         contentView.addView(newCandidatesView)
         inputDeviceManager.setCandidatesView(newCandidatesView)

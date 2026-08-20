@@ -70,7 +70,7 @@ class InputBarDelegate : InputBroadcastReceiver {
     private val commonKeyboardActionListener: CommonKeyboardActionListener by di.instance()
     private val candidate: CompactCandidateDelegate by di.instance()
     private val rime: RimeSession by di.instance()
-    private val t9PinyinHeight = dp(32)
+    private val t9PinyinHeight = context.dp(32)
 
     private val t9PinyinUi =
         T9PinyinView(
@@ -271,6 +271,12 @@ class InputBarDelegate : InputBroadcastReceiver {
 
     val view by lazy {
         ViewAnimator(context).apply {
+
+            service.t9InputController.onCandidatesChanged = { tokens ->
+                t9PinyinUi.post {
+                    t9PinyinUi.updateItems(tokens)
+                }
+            }
             visibility =
                 if (hideQuickBar) {
                     View.GONE
