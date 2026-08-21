@@ -179,6 +179,12 @@ class Rime :
         getRimeRawInput()
     }
 
+    override suspend fun setRawInput(input: String): Boolean = withRimeContext {
+        setRimeRawInput(input).also {
+            if (it) emitResponse()
+        }
+    }
+
     override suspend fun setRuntimeOption(
         option: String,
         value: Boolean,
@@ -462,6 +468,9 @@ class Rime :
 
         @JvmStatic
         external fun getRimeRawInput(): String
+
+        @JvmStatic
+        external fun setRimeRawInput(input: String): Boolean
 
         @JvmStatic
         external fun getRimeCaretPos(): Int

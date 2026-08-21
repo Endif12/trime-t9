@@ -242,8 +242,7 @@ class T9InputController(
         lastRimeInput = input
         rime.lifecycleScope.launch {
             rime.runOnReady {
-                clearComposition()
-                simulateKeySequence(input)
+                setRawInput(input)
             }
         }
     }
