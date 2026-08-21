@@ -106,34 +106,13 @@ class T9PinyinView(
     private fun createItem(
         token: T9InputController.PinYinToken,
     ): TextView = TextView(context).apply {
-        transformationMethod = null
-        text = token.display
-        setTextColor(textColor)
-        textSize = this@T9PinyinView.textSize
-        typeface = textFont
+        text = "ABC"
+        setTextColor(Color.BLACK)
+        textSize = 20f
+        typeface = Typeface.DEFAULT
         gravity = Gravity.CENTER
-
-        val horizontal = dp(theme.window.itemPadding.horizontal)
-        val vertical = dp(theme.window.itemPadding.vertical)
-
-        setPadding(
-            horizontal,
-            vertical / 2,
-            horizontal,
-            vertical / 2,
-        )
-
-        isClickable = true
-        isFocusable = false
-
-        background = GradientDrawable().apply {
-            setColor(Color.TRANSPARENT)
-            cornerRadius = dp(theme.generalStyle.candidateCornerRadius).toFloat()
-        }
-
-        setOnClickListener {
-            onPinyinSelected?.invoke(token)
-        }
+        includeFontPadding = false
+        transformationMethod = null
     }
 
     private fun createDivider(): TextView = TextView(context).apply {
