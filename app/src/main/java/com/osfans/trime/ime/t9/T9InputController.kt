@@ -222,7 +222,10 @@ class T9InputController(
                 )
             ) {
                 result.append(token.pinYin)
-                result.append(SEGMENT_KEY_CHAR)
+
+                if (rawEnd < input.length) {
+                    result.append(SEGMENT_KEY_CHAR)
+                }
             } else {
                 result.append(
                     input.substring(token.pos, rawEnd),
