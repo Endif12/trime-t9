@@ -106,6 +106,7 @@ class T9PinyinView(
     private fun createItem(
         token: T9InputController.PinYinToken,
     ): TextView = TextView(context).apply {
+        transformationMethod = null
         text = token.display
         setTextColor(textColor)
         textSize = this@T9PinyinView.textSize
