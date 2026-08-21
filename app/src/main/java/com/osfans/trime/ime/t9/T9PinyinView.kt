@@ -113,6 +113,13 @@ class T9PinyinView(
         gravity = Gravity.CENTER
         includeFontPadding = false
         transformationMethod = null
+
+        isClickable = true
+        isFocusable = false
+
+        setOnClickListener {
+            onPinyinSelected?.invoke(token)
+        }
     }
 
     private fun createDivider(): TextView = TextView(context).apply {
