@@ -10,7 +10,6 @@ import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.osfans.trime.data.theme.ColorManager
-import com.osfans.trime.data.theme.FontManager
 import com.osfans.trime.data.theme.Theme
 import com.osfans.trime.util.sp
 import splitties.dimensions.dp
@@ -52,7 +51,7 @@ class T9PinyinView(
     }
 
     private val textFont: Typeface by lazy {
-        FontManager.getTypeface("candidate_font")
+        Typeface.create("sans-serif", Typeface.NORMAL)
     }
 
     private val textSize: Float by lazy {
