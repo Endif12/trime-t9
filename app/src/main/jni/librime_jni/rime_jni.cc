@@ -147,7 +147,7 @@ class Rime {
     return cStr ? cStr : "";
   }
 
-  bool setRawInput(const std::string& input) {
+  bool setRawInput(const std::string &input) {
     return rime->set_input(session(), input.c_str());
   }
 
@@ -363,8 +363,8 @@ Java_com_osfans_trime_core_Rime_getCurrentRimeSchema(JNIEnv *env,
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_osfans_trime_core_Rime_setRimeRawInput(JNIEnv *env,
-                                                jclass /* thiz */,
-                                                jstring input) {
+                                               jclass /* thiz */,
+                                               jstring input) {
   return Rime::Instance().setRawInput(CString(env, input));
 }
 
