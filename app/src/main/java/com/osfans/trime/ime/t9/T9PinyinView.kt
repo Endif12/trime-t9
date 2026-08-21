@@ -106,7 +106,7 @@ class T9PinyinView(
     private fun createItem(
         token: T9InputController.PinYinToken,
     ): TextView = TextView(context).apply {
-        text = "ABC"
+        text = token.pinYin
         setTextColor(Color.BLACK)
         textSize = 20f
         typeface = Typeface.DEFAULT
