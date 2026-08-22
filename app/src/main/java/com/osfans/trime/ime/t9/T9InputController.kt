@@ -222,9 +222,7 @@ class T9InputController(
                 )
             ) {
                 result.append(token.pinYin)
-
-                if (rawEnd < input.length) {
-                    result.append(SEGMENT_KEY_CHAR)
+                result.append(SEGMENT_KEY_CHAR)
                 }
             } else {
                 result.append(
@@ -255,6 +253,7 @@ class T9InputController(
         selectedQueue.clear()
         behaviorQueue.clear()
         cachedInputString = ""
+        lastRimeInput = ""
         fireCandidatesChanged()
     }
 
