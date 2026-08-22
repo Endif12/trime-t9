@@ -97,11 +97,28 @@ class T9InputController(
             }
         }
 
-        if (modified) {
-            fireCandidatesChanged()
+        if (!modified) {
+            return false
         }
 
-        return modified
+        // T9 输入已经完全退格清空：
+        // 同时清除本地选择状态、Rime 的旧 composition，
+        // 防止下一次输入继续继承上一轮的拼音候选。
+        if (cachedInputString.isEmpty()) {
+            selectedQueue.clear()
+            behaviorQueue.clear()
+            lastRimeInput = ""
+
+            rime.lifecycleScope.launch {
+                rime.runOnReady {
+                    clearComposition()
+                }
+            }
+        }
+
+        fireCandidatesChanged()
+
+        return true
     }
 
     fun onSegmentKey(): Boolean {
