@@ -212,22 +212,22 @@ class T9InputController(
 
             val rawEnd = token.pos + token.raw.length
 
-        if (
-            rawEnd <= input.length &&
-            input.regionMatches(
-                token.pos,
-                token.raw,
-                0,
-                token.raw.length,
-            )
-        ) {
-            result.append(token.pinYin)
-            result.append(SEGMENT_KEY_CHAR)
-        } else {
-            result.append(
-                input.substring(token.pos, rawEnd),
-            )
-        }
+            if (
+                rawEnd <= input.length &&
+                input.regionMatches(
+                    token.pos,
+                    token.raw,
+                    0,
+                    token.raw.length,
+                )
+            ) {
+                result.append(token.pinYin)
+                result.append(SEGMENT_KEY_CHAR)
+            } else {
+                result.append(
+                    input.substring(token.pos, rawEnd),
+                )
+            }
 
             cursor = rawEnd
         }
