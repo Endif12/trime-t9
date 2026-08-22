@@ -37,7 +37,6 @@ class T9InputController(
     companion object {
         const val SEGMENT_KEY_CHAR = '\''
         const val SEGMENT_KEY_CHAR_ALIAS = '1'
-        const val EXACT_PINYIN_PREFIX = '~'
     }
 
     init {
@@ -222,7 +221,6 @@ class T9InputController(
                     token.raw.length,
                 )
             ) {
-                result.append(EXACT_PINYIN_PREFIX)
                 result.append(token.pinYin)
 
                 if (rawEnd < input.length) {
