@@ -89,7 +89,7 @@ class InputBarDelegate : InputBroadcastReceiver {
         }
 
     private val baseThemedHeight =
-        theme.generalStyle.run { candidateViewHeight + commentHeight }
+        context.dp(theme.generalStyle.candidateViewHeight)
 
     val themedHeight = baseThemedHeight + t9PinyinHeight
 
