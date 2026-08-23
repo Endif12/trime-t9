@@ -62,6 +62,7 @@ class T9PinyinView(
         isHorizontalScrollBarEnabled = false
         overScrollMode = OVER_SCROLL_NEVER
         isFillViewport = false
+        setBackgroundColor(Color.rgb(255, 180, 0))
 
         addView(
             container,
