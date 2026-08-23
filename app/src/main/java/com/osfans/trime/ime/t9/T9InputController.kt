@@ -157,6 +157,16 @@ class T9InputController(
         return true
     }
 
+    fun onCandidateSelected() {
+        // 普通候选上屏后，前面的数字已经被 Rime 消耗。
+        // 当前 T9 输入只需要继续处理剩余的数字，因此：
+        // 1. 清除已经选择的拼音段
+        // 2. 清除旧的 T9 原始输入
+        // 3. 等待 Rime 的最新 composition，再同步剩余数字
+        selectedQueue.clear()
+        behaviorQueue.clear()
+    }
+
     fun onSegmentKey(): Boolean {
         if (inputQueue.isEmpty()) {
             return true
