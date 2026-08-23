@@ -1,6 +1,7 @@
 package com.osfans.trime.ime.t9
 
 import android.view.KeyEvent
+import com.osfans.trime.core.CompositionProto
 import com.osfans.trime.core.RimeMessage
 import com.osfans.trime.daemon.RimeSession
 import kotlinx.coroutines.Job
@@ -32,6 +33,7 @@ class T9InputController(
 
     private var cachedInputString = ""
     private var lastRimeInput = ""
+    private var waitingForCandidateComposition = false
     private var messageJob: Job? = null
 
     companion object {
@@ -42,11 +44,21 @@ class T9InputController(
     init {
         messageJob = rime.lifecycleScope.launch {
             rime.run { messageFlow }.collect { message ->
-                if (message is RimeMessage.CommitTextMessage) {
-                    val text = message.data.text
-                    if (!text.isNullOrEmpty()) {
-                        clear()
+                when (message) {
+                    is RimeMessage.CommitTextMessage -> {
+                        val text = message.data.text
+                        if (!text.isNullOrEmpty()) {
+                            clear()
+                        }
                     }
+
+                    is RimeMessage.CompositionMessage -> {
+                        if (waitingForCandidateComposition) {
+                            syncFromRimeComposition(message.data)
+                        }
+                    }
+
+                    else -> Unit
                 }
             }
         }
@@ -158,13 +170,42 @@ class T9InputController(
     }
 
     fun onCandidateSelected() {
-        // 普通候选上屏后，前面的数字已经被 Rime 消耗。
-        // 当前 T9 输入只需要继续处理剩余的数字，因此：
-        // 1. 清除已经选择的拼音段
-        // 2. 清除旧的 T9 原始输入
-        // 3. 等待 Rime 的最新 composition，再同步剩余数字
+        if (cachedInputString.isEmpty()) {
+            return
+        }
+
         selectedQueue.clear()
         behaviorQueue.clear()
+        waitingForCandidateComposition = true
+    }
+
+    private fun syncFromRimeComposition(data: CompositionProto) {
+        waitingForCandidateComposition = false
+
+        val preedit = data.preedit.orEmpty()
+
+        // 候选选中后，Rime 的 composition 可能变成：
+        //   好33
+        //   这和4
+        //   我是74
+        //
+        // T9 只需要继续处理末尾尚未消费的数字。
+        val remainingDigits =
+            Regex("[2-9]+$")
+                .find(preedit)
+                ?.value
+                .orEmpty()
+
+        cachedInputString = remainingDigits
+        inputQueue.clear()
+        selectedQueue.clear()
+        behaviorQueue.clear()
+
+        inputQueue.addAll(remainingDigits.map { it.toString() })
+
+        lastRimeInput = preedit
+
+        fireCandidatesChanged()
     }
 
     fun onSegmentKey(): Boolean {
@@ -316,6 +357,7 @@ class T9InputController(
         behaviorQueue.clear()
         cachedInputString = ""
         lastRimeInput = ""
+        waitingForCandidateComposition = false
         fireCandidatesChanged()
     }
 
