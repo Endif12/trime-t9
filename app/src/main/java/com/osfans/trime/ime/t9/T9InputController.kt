@@ -121,6 +121,33 @@ class T9InputController(
         return true
     }
 
+    fun onEscape(): Boolean {
+        val hasInput =
+            cachedInputString.isNotEmpty() ||
+                selectedQueue.isNotEmpty() ||
+                behaviorQueue.isNotEmpty()
+
+        if (!hasInput) {
+            return false
+        }
+
+        inputQueue.clear()
+        selectedQueue.clear()
+        behaviorQueue.clear()
+        cachedInputString = ""
+        lastRimeInput = ""
+
+        fireCandidatesChanged()
+
+        rime.lifecycleScope.launch {
+            rime.runOnReady {
+                clearComposition()
+            }
+        }
+
+        return true
+    }
+
     fun onSegmentKey(): Boolean {
         if (inputQueue.isEmpty()) {
             return true

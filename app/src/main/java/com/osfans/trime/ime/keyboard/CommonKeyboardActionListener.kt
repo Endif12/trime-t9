@@ -383,6 +383,12 @@ class CommonKeyboardActionListener {
                             }
                         }
 
+                        KeyEvent.KEYCODE_ESCAPE -> {
+                            if (service.t9InputController.onEscape()) {
+                                return
+                            }
+                        }
+
                         KeyEvent.KEYCODE_APOSTROPHE -> {
                             if (!service.t9InputController.onSegmentKey()) {
                                 return
