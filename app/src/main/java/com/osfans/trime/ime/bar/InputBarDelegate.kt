@@ -70,7 +70,7 @@ class InputBarDelegate : InputBroadcastReceiver {
     private val commonKeyboardActionListener: CommonKeyboardActionListener by di.instance()
     private val candidate: CompactCandidateDelegate by di.instance()
     private val rime: RimeSession by di.instance()
-    private val t9PinyinHeight = context.dp(32)
+    private val t9PinyinHeight = context.dp(64)
 
     private val t9PinyinUi =
         T9PinyinView(
