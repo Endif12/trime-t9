@@ -65,37 +65,70 @@ class T9InputController(
     }
 
     fun onBackspace(): Boolean {
-        if (behaviorQueue.isEmpty()) {
+        if (cachedInputString.isEmpty()) {
             return false
         }
 
-        var modified = false
+        // 最后一个已选拼音在原始数字串中的结束位置。
+        // 例如：
+        // 94354 + 选择 zhe
+        // selectedQueue.last() = zhe, pos=0, raw.length=3
+        // lastSelectedEnd = 3
+        val lastSelectedEnd =
+            selectedQueue.lastOrNull()?.let {
+                it.pos + it.raw.length
+            } ?: 0
 
-        when (behaviorQueue.removeLast()) {
-            Behavior.SELECT_PINYIN -> {
-                if (selectedQueue.isNotEmpty()) {
-                    val lastSelected = selectedQueue.last()
+        when {
+            // 还有“已选拼音”后面的未锁定输入。
+            // 优先删除这些输入，而不是取消前面已经锁定的拼音。
+            cachedInputString.length > lastSelectedEnd -> {
+                cachedInputString = cachedInputString.dropLast(1)
 
-                    if (!lastRimeInput.contains(lastSelected.pinYin)) {
-                        return false
-                    }
-
-                    selectedQueue.removeLast()
-                    modified = true
+                if (inputQueue.isNotEmpty()) {
+                    inputQueue.removeLast()
                 }
             }
 
-            Behavior.SELECT_CANDIDATE -> {
+            // 没有未锁定尾部了，才取消最后一个已选拼音。
+            selectedQueue.isNotEmpty() -> {
+                selectedQueue.removeLast()
             }
 
+            // 完全没有已选拼音，就是普通 T9 输入。
             else -> {
+                cachedInputString = cachedInputString.dropLast(1)
+
                 if (inputQueue.isNotEmpty()) {
                     inputQueue.removeLast()
-                    cachedInputString = cachedInputString.dropLast(1)
-                    modified = true
                 }
             }
         }
+
+        // T9 已经完全清空。
+        if (cachedInputString.isEmpty()) {
+            inputQueue.clear()
+            selectedQueue.clear()
+            behaviorQueue.clear()
+            lastRimeInput = ""
+
+            fireCandidatesChanged()
+
+            rime.lifecycleScope.launch {
+                rime.runOnReady {
+                    clearComposition()
+                }
+            }
+
+            return true
+        }
+
+        // 本地状态改变后，Rime 也必须立即同步。
+        updateRimeInput()
+        fireCandidatesChanged()
+
+        return true
+    }
 
         if (!modified) {
             return false
