@@ -1,7 +1,6 @@
 package com.osfans.trime.ime.t9
 
 import android.view.KeyEvent
-import com.osfans.trime.core.CompositionProto
 import com.osfans.trime.core.RimeMessage
 import com.osfans.trime.daemon.RimeSession
 import kotlinx.coroutines.Job
@@ -167,12 +166,12 @@ class T9InputController(
         behaviorQueue.clear()
     }
 
-    fun onRimeCandidateSelected(composition: CompositionProto) {
-        val preedit = composition.preedit.orEmpty()
-
+    fun onRimeCandidateSelected(rawInput: String) {
+        // Rime 已经处理完候选选择。
+        // rawInput 是候选选择后仍然留在 Rime composition 中的原始输入。
         val remainingDigits =
             Regex("[2-9]+$")
-                .find(preedit)
+                .find(rawInput)
                 ?.value
                 .orEmpty()
 
@@ -184,7 +183,7 @@ class T9InputController(
 
         inputQueue.addAll(remainingDigits.map { it.toString() })
 
-        lastRimeInput = preedit
+        lastRimeInput = rawInput
 
         fireCandidatesChanged()
     }

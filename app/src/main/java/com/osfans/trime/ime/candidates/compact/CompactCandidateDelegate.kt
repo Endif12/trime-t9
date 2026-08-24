@@ -96,9 +96,10 @@ class CompactCandidateDelegate : InputBroadcastReceiver {
 
                 rime.launchOnReady {
                     it.selectCandidate(position, global = true)
-                    service.t9InputController.onRimeCandidateSelected(
-                        it.compositionCached,
-                    )
+
+                    val rawInput = it.getRawInput()
+
+                    service.t9InputController.onRimeCandidateSelected(rawInput)
                 }
             }
             setOnItemLongClickListener { _, view, position ->
