@@ -99,7 +99,9 @@ class CompactCandidateDelegate : InputBroadcastReceiver {
 
                     val composition = it.getComposition()
 
-                    service.t9InputController.onRimeCandidateSelected(composition)
+                    service.t9InputController.onRimeCandidateSelected(
+                        composition.preedit.orEmpty(),
+                    )
                 }
             }
             setOnItemLongClickListener { _, view, position ->
