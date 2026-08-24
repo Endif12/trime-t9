@@ -33,7 +33,6 @@ class T9InputController(
 
     private var cachedInputString = ""
     private var lastRimeInput = ""
-    private var waitingForCandidateComposition = false
     private var messageJob: Job? = null
 
     companion object {
@@ -44,21 +43,11 @@ class T9InputController(
     init {
         messageJob = rime.lifecycleScope.launch {
             rime.run { messageFlow }.collect { message ->
-                when (message) {
-                    is RimeMessage.CommitTextMessage -> {
-                        val text = message.data.text
-                        if (!text.isNullOrEmpty()) {
-                            clear()
-                        }
+                if (message is RimeMessage.CommitTextMessage) {
+                    val text = message.data.text
+                    if (!text.isNullOrEmpty()) {
+                        clear()
                     }
-
-                    is RimeMessage.CompositionMessage -> {
-                        if (waitingForCandidateComposition) {
-                            syncFromRimeComposition(message.data)
-                        }
-                    }
-
-                    else -> Unit
                 }
             }
         }
@@ -176,27 +165,11 @@ class T9InputController(
 
         selectedQueue.clear()
         behaviorQueue.clear()
-        waitingForCandidateComposition = true
     }
 
-    private fun syncFromRimeComposition(data: CompositionProto) {
-        val preedit = data.preedit.orEmpty()
+    fun onRimeCandidateSelected(composition: CompositionProto) {
+        val preedit = composition.preedit.orEmpty()
 
-        // 候选点击后，Rime 可能先发送一次尚未变化的旧 composition。
-        // 例如：
-        //   点击“好”
-        //   旧 composition：42633
-        //   新 composition：好33
-        //
-        // 旧 composition 不能结束等待状态，否则真正的新 composition
-        // 到来时我们就不会再同步了。
-        if (preedit == lastRimeInput) {
-            return
-        }
-
-        waitingForCandidateComposition = false
-
-        // 候选已经消费掉前面的内容，只保留末尾还未输入完成的数字。
         val remainingDigits =
             Regex("[2-9]+$")
                 .find(preedit)
@@ -204,6 +177,7 @@ class T9InputController(
                 .orEmpty()
 
         cachedInputString = remainingDigits
+
         inputQueue.clear()
         selectedQueue.clear()
         behaviorQueue.clear()

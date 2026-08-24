@@ -93,7 +93,13 @@ class CompactCandidateDelegate : InputBroadcastReceiver {
         CompactCandidateViewAdapter(theme).apply {
             setOnItemClickListener { _, _, position ->
                 service.t9InputController.onCandidateSelected()
-                rime.launchOnReady { it.selectCandidate(position, global = true) }
+
+                rime.launchOnReady {
+                    it.selectCandidate(position, global = true)
+                    service.t9InputController.onRimeCandidateSelected(
+                        it.compositionCached,
+                    )
+                }
             }
             setOnItemLongClickListener { _, view, position ->
                 inputView.showCandidateActionMenu(position, items[position].text, view, global = true)
