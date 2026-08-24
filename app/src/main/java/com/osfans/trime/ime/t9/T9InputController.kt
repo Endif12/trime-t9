@@ -32,6 +32,7 @@ class T9InputController(
 
     private var cachedInputString = ""
     private var lastRimeInput = ""
+    private var waitingForCandidateComposition = false
     private var messageJob: Job? = null
 
     companion object {
@@ -164,14 +165,26 @@ class T9InputController(
 
         selectedQueue.clear()
         behaviorQueue.clear()
+        waitingForCandidateComposition = true
     }
 
-    fun onRimeCandidateSelected(rawInput: String) {
-        // Rime 已经处理完候选选择。
-        // rawInput 是候选选择后仍然留在 Rime composition 中的原始输入。
+    fun onCompositionUpdated(preedit: String) {
+        if (!waitingForCandidateComposition) {
+            return
+        }
+
+        waitingForCandidateComposition = false
+
+        // 只取编辑栏当前内容末尾连续的九宫格数字。
+        //
+        // 例如：
+        //   好33   → 33
+        //   这和4 → 4
+        //   我是74 → 74
+        //   好     → 空
         val remainingDigits =
             Regex("[2-9]+$")
-                .find(rawInput)
+                .find(preedit)
                 ?.value
                 .orEmpty()
 
@@ -183,7 +196,7 @@ class T9InputController(
 
         inputQueue.addAll(remainingDigits.map { it.toString() })
 
-        lastRimeInput = rawInput
+        lastRimeInput = preedit
 
         fireCandidatesChanged()
     }
@@ -337,6 +350,7 @@ class T9InputController(
         behaviorQueue.clear()
         cachedInputString = ""
         lastRimeInput = ""
+        waitingForCandidateComposition = false
         fireCandidatesChanged()
     }
 

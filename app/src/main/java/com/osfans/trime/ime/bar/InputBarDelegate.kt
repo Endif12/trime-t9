@@ -23,6 +23,7 @@ import androidx.lifecycle.lifecycleScope
 import com.osfans.trime.R
 import com.osfans.trime.core.Candidates
 import com.osfans.trime.core.RimeMessage
+import com.osfans.trime.core.CompositionProto
 import com.osfans.trime.daemon.RimeSession
 import com.osfans.trime.daemon.launchOnReady
 import com.osfans.trime.data.db.ClipboardHelper
@@ -416,5 +417,11 @@ class InputBarDelegate : InputBroadcastReceiver {
 
     override fun onRimeOptionUpdated(value: RimeMessage.OptionMessage.Data) {
         alwaysUi.updateButtonsStyle(value.option, value.value)
+    }
+
+    override fun onCompositionUpdate(data: CompositionProto) {
+        service.t9InputController.onCompositionUpdated(
+            data.preedit.orEmpty(),
+        )
     }
 }
