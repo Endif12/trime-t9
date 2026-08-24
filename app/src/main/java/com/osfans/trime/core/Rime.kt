@@ -179,8 +179,7 @@ class Rime :
         getRimeRawInput()
     }
 
-    override suspend fun getComposition(): CompositionProto =
-    withRimeContext {
+    override suspend fun getComposition(): CompositionProto = withRimeContext {
         getRimeResponse(pagingMode).composition
     }
 
