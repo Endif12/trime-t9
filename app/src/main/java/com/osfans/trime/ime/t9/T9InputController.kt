@@ -180,16 +180,23 @@ class T9InputController(
     }
 
     private fun syncFromRimeComposition(data: CompositionProto) {
-        waitingForCandidateComposition = false
-
         val preedit = data.preedit.orEmpty()
 
-        // 候选选中后，Rime 的 composition 可能变成：
-        //   好33
-        //   这和4
-        //   我是74
+        // 候选点击后，Rime 可能先发送一次尚未变化的旧 composition。
+        // 例如：
+        //   点击“好”
+        //   旧 composition：42633
+        //   新 composition：好33
         //
-        // T9 只需要继续处理末尾尚未消费的数字。
+        // 旧 composition 不能结束等待状态，否则真正的新 composition
+        // 到来时我们就不会再同步了。
+        if (preedit == lastRimeInput) {
+            return
+        }
+
+        waitingForCandidateComposition = false
+
+        // 候选已经消费掉前面的内容，只保留末尾还未输入完成的数字。
         val remainingDigits =
             Regex("[2-9]+$")
                 .find(preedit)
