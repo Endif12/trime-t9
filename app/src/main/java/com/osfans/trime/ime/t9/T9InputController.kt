@@ -338,7 +338,6 @@ class T9InputController(
         behaviorQueue.clear()
         cachedInputString = ""
         lastRimeInput = ""
-        waitingForCandidateComposition = false
         fireCandidatesChanged()
     }
 
