@@ -32,7 +32,6 @@ class T9InputController(
 
     private var cachedInputString = ""
     private var lastRimeInput = ""
-    private var waitingForCandidateComposition = false
     private var messageJob: Job? = null
 
     companion object {
@@ -45,7 +44,7 @@ class T9InputController(
             rime.run { messageFlow }.collect { message ->
                 if (message is RimeMessage.CommitTextMessage) {
                     val text = message.data.text
-                    if (!text.isNullOrEmpty() && !waitingForCandidateComposition) {
+                    if (!text.isNullOrEmpty()) {
                         clear()
                     }
                 }
@@ -165,28 +164,56 @@ class T9InputController(
 
         selectedQueue.clear()
         behaviorQueue.clear()
-        waitingForCandidateComposition = true
     }
 
     fun onCompositionUpdated(preedit: String) {
-        if (!waitingForCandidateComposition) {
+        if (preedit.isEmpty()) {
             return
         }
 
-        waitingForCandidateComposition = false
-
-        // 只取编辑栏当前内容末尾连续的九宫格数字。
+        // 只针对“汉字/中文内容 + 后续九宫格数字”的 composition。
         //
         // 例如：
         //   好33   → 33
         //   这和4 → 4
         //   我是74 → 74
-        //   好     → 空
-        val remainingDigits =
-            Regex("[2-9]+$")
-                .find(preedit)
-                ?.value
-                .orEmpty()
+        //
+        // 普通 T9：
+        //   42633
+        //
+        // 已选择拼音：
+        //   zhe'43
+        //
+        // 都不会进入这里。
+        val match = Regex("^(.*?)([2-9]+)$").matchEntire(preedit)
+            ?: return
+
+        val prefix = match.groupValues[1]
+        val remainingDigits = match.groupValues[2]
+
+        // 必须确认前面的内容包含汉字，否则普通数字输入
+        // 和已选择拼音的 zhe'43 都不能被当成“候选词 + 剩余数字”。
+        if (
+            prefix.isEmpty() ||
+            prefix.none {
+                Character.UnicodeScript.of(it.code) == Character.UnicodeScript.HAN
+            }
+        ) {
+            return
+        }
+
+        cachedInputString = remainingDigits
+
+        inputQueue.clear()
+        selectedQueue.clear()
+        behaviorQueue.clear()
+
+        inputQueue.addAll(remainingDigits.map { it.toString() })
+
+        lastRimeInput = preedit
+
+        fireCandidatesChanged()
+    }
 
         cachedInputString = remainingDigits
 
@@ -350,7 +377,6 @@ class T9InputController(
         behaviorQueue.clear()
         cachedInputString = ""
         lastRimeInput = ""
-        waitingForCandidateComposition = false
         fireCandidatesChanged()
     }
 
