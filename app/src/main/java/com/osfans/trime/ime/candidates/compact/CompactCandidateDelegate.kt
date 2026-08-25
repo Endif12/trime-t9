@@ -95,7 +95,7 @@ class CompactCandidateDelegate : InputBroadcastReceiver {
                 rime.launchOnReady {
                     if (it.selectCandidate(position, global = true)) {
                         service.t9InputController.onCompositionUpdated(
-                            it.compositionCached.preedit.orEmpty()
+                            it.compositionCached.preedit.orEmpty(),
                         )
                     }
                 }

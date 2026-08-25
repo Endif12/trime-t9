@@ -104,7 +104,7 @@ class CandidatesView(
                 rime.launchOnReady {
                     if (it.selectCandidate(index, global = false)) {
                         service.t9InputController.onCompositionUpdated(
-                            it.compositionCached.preedit.orEmpty()
+                            it.compositionCached.preedit.orEmpty(),
                         )
                     }
                 }
