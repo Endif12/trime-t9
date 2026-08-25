@@ -168,6 +168,7 @@ class T9InputController(
 
     fun onCompositionUpdated(preedit: String) {
         if (preedit.isEmpty()) {
+            clear()
             return
         }
 

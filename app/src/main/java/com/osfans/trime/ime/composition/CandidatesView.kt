@@ -100,7 +100,15 @@ class CandidatesView(
         PagedCandidatesUi(
             ctx,
             theme,
-            onCandidateClick = { index -> rime.launchOnReady { it.selectCandidate(index, global = false) } },
+            onCandidateClick = { index ->
+                rime.launchOnReady {
+                    if (it.selectCandidate(index, global = false)) {
+                        service.t9InputController.onCompositionUpdated(
+                            it.compositionCached.preedit.orEmpty()
+                        )
+                    }
+                }
+            },
             onCandidateAction = { index, text, view -> showCandidateActionMenu(index, text, view, global = false) },
             onPrevPage = { rime.launchOnReady { it.changeCandidatePage(true) } },
             onNextPage = { rime.launchOnReady { it.changeCandidatePage(false) } },
