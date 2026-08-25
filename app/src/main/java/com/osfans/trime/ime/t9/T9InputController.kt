@@ -45,7 +45,7 @@ class T9InputController(
             rime.run { messageFlow }.collect { message ->
                 if (message is RimeMessage.CommitTextMessage) {
                     val text = message.data.text
-                    if (!text.isNullOrEmpty()) {
+                    if (!text.isNullOrEmpty() && !waitingForCandidateComposition) {
                         clear()
                     }
                 }
