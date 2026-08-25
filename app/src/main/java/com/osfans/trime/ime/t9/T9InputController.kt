@@ -215,19 +215,6 @@ class T9InputController(
         fireCandidatesChanged()
     }
 
-        cachedInputString = remainingDigits
-
-        inputQueue.clear()
-        selectedQueue.clear()
-        behaviorQueue.clear()
-
-        inputQueue.addAll(remainingDigits.map { it.toString() })
-
-        lastRimeInput = preedit
-
-        fireCandidatesChanged()
-    }
-
     fun onSegmentKey(): Boolean {
         if (inputQueue.isEmpty()) {
             return true
