@@ -108,7 +108,7 @@ class CompactCandidateDelegate : InputBroadcastReceiver {
                             "result=$result, " +
                             "afterRaw=[$after], " +
                             "preedit=[$preedit], " +
-                            "preview=[$preview]"
+                            "preview=[$preview]",
                     )
                 }
             }
