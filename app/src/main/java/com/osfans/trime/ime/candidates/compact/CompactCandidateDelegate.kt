@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import org.kodein.di.instance
 import splitties.dimensions.dp
 import splitties.views.dsl.recyclerview.recyclerView
+import timber.log.Timber
 import kotlin.math.max
 
 class CompactCandidateDelegate : InputBroadcastReceiver {
@@ -93,16 +94,23 @@ class CompactCandidateDelegate : InputBroadcastReceiver {
         CompactCandidateViewAdapter(theme).apply {
             setOnItemClickListener { _, _, position ->
                 rime.launchOnReady {
-                    if (it.selectCandidate(position, global = true)) {
-                        service.t9InputController.onCompositionUpdated(
-                            it.compositionCached.preedit.orEmpty(),
-                        )
-                    }
+                    val before = it.getRawInput()
+
+                    val result = it.selectCandidate(position, global = true)
+
+                    val after = it.getRawInput()
+                    val preedit = it.compositionCached.preedit.orEmpty()
+                    val preview = it.compositionCached.commitTextPreview.orEmpty()
+
+                    Timber.d(
+                        "T9 candidate click: " +
+                            "beforeRaw=[$before], " +
+                            "result=$result, " +
+                            "afterRaw=[$after], " +
+                            "preedit=[$preedit], " +
+                            "preview=[$preview]"
+                    )
                 }
-            }
-            setOnItemLongClickListener { _, view, position ->
-                inputView.showCandidateActionMenu(position, items[position].text, view, global = true)
-                true
             }
         }
     }
