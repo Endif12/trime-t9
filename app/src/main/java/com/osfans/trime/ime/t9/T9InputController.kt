@@ -31,6 +31,7 @@ class T9InputController(
     var onCandidatesChanged: ((List<PinYinToken>) -> Unit)? = null
 
     private var cachedInputString = ""
+    private var committedPrefix = ""
     private var lastRimeInput = ""
     private var messageJob: Job? = null
 
@@ -172,61 +173,62 @@ class T9InputController(
             return
         }
 
-        // 找到第一个九宫格数字。
-        //
-        // 例如：
-        //   好33       -> firstDigit = 1
-        //   好33 22    -> firstDigit = 1
-        //   这和4      -> firstDigit = 2
-        //
-        // 重点：不能再取“最后一段数字”，
-        // 因为候选词选择后可能存在多个尚未完成的 segment。
         val firstDigitIndex = preedit.indexOfFirst {
             it in '2'..'9'
         }
 
-        if (firstDigitIndex <= 0) {
-            return
-        }
+        /*
+        * 情况 1：
+        *
+        * 什么94 74
+        *
+        * 第一个数字前面是已经选择的中文内容。
+        */
+        if (firstDigitIndex > 0) {
+            val prefix = preedit.substring(0, firstDigitIndex)
 
-        val prefix = preedit.substring(0, firstDigitIndex)
+            if (
+                prefix.any {
+                    Character.UnicodeScript.of(it.code) == Character.UnicodeScript.HAN
+                }
+            ) {
+                committedPrefix = prefix
 
-        // 前面的内容必须包含汉字。
-        if (
-            prefix.none {
-                Character.UnicodeScript.of(it.code) == Character.UnicodeScript.HAN
+                val remainingDigits = preedit
+                    .substring(firstDigitIndex)
+                    .filter { it in '2'..'9' }
+
+                if (remainingDigits.isEmpty()) {
+                    return
+                }
+
+                cachedInputString = remainingDigits
+
+                inputQueue.clear()
+                selectedQueue.clear()
+                behaviorQueue.clear()
+
+                inputQueue.addAll(
+                    remainingDigits.map { it.toString() },
+                )
+
+                lastRimeInput = preedit
+
+                fireCandidatesChanged()
+                return
             }
-        ) {
-            return
         }
 
-        // 从第一个数字开始，保留所有后续的九宫格数字。
-        //
-        // 好33       -> 33
-        // 好33 22    -> 3322
-        //
-        // 中间的空格/segment 分隔符不参与 T9 数字串。
-        val remainingDigits = preedit
-            .substring(firstDigitIndex)
-            .filter { it in '2'..'9' }
-
-        if (remainingDigits.isEmpty()) {
-            return
-        }
-
-        cachedInputString = remainingDigits
-
-        inputQueue.clear()
-        selectedQueue.clear()
-        behaviorQueue.clear()
-
-        inputQueue.addAll(
-            remainingDigits.map { it.toString() },
-        )
-
+        /*
+        * 情况 2：
+        *
+        * yi'74
+        *
+        * 这是已经选择了一个拼音之后的 Rime preedit。
+        *
+        * 它没有中文前缀，但不能把之前保存的 committedPrefix 清掉。
+        */
         lastRimeInput = preedit
-
-        fireCandidatesChanged()
     }
 
     fun onSegmentKey(): Boolean {
@@ -377,8 +379,25 @@ class T9InputController(
         selectedQueue.clear()
         behaviorQueue.clear()
         cachedInputString = ""
+        committedPrefix = ""
         lastRimeInput = ""
         fireCandidatesChanged()
+    }
+
+    fun getDisplayPreedit(preedit: String): String {
+        if (preedit.isEmpty()) {
+            return ""
+        }
+
+        if (committedPrefix.isEmpty()) {
+            return preedit
+        }
+
+        return if (preedit.startsWith(committedPrefix)) {
+            preedit
+        } else {
+            committedPrefix + preedit
+        }
     }
 
     private fun fireCandidatesChanged() {

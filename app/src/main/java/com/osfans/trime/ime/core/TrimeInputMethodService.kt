@@ -925,17 +925,25 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
 
     internal fun updateComposingText(text: String) {
         val ic = currentInputConnection ?: return
+
+        val displayText =
+            t9InputController.getDisplayPreedit(text)
+
         ic.beginBatchEdit()
-        if (composingText.isNotEmpty() || text.isNotEmpty()) {
+
+        if (composingText.isNotEmpty() || displayText.isNotEmpty()) {
             if (!ic.getSelectedText(0).isNullOrEmpty()) {
                 ic.deleteSurroundingText(1, 0)
             }
-            ic.setComposingText(text, 1)
-            if (text.isEmpty()) {
+
+            ic.setComposingText(displayText, 1)
+
+            if (displayText.isEmpty()) {
                 ic.finishComposingText()
             }
         }
-        composingText = text
+
+        composingText = displayText
         ic.endBatchEdit()
     }
 
