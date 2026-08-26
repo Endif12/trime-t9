@@ -178,12 +178,12 @@ class T9InputController(
         }
 
         /*
-        * 情况 1：
-        *
-        * 什么94 74
-        *
-        * 第一个数字前面是已经选择的中文内容。
-        */
+         * 情况 1：
+         *
+         * 什么94 74
+         *
+         * 第一个数字前面是已经选择的中文内容。
+         */
         if (firstDigitIndex > 0) {
             val prefix = preedit.substring(0, firstDigitIndex)
 
@@ -220,14 +220,14 @@ class T9InputController(
         }
 
         /*
-        * 情况 2：
-        *
-        * yi'74
-        *
-        * 这是已经选择了一个拼音之后的 Rime preedit。
-        *
-        * 它没有中文前缀，但不能把之前保存的 committedPrefix 清掉。
-        */
+         * 情况 2：
+         *
+         * yi'74
+         *
+         * 这是已经选择了一个拼音之后的 Rime preedit。
+         *
+         * 它没有中文前缀，但不能把之前保存的 committedPrefix 清掉。
+         */
         lastRimeInput = preedit
     }
 
