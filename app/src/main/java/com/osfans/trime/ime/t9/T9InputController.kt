@@ -172,34 +172,45 @@ class T9InputController(
             return
         }
 
-        // 只针对“汉字/中文内容 + 后续九宫格数字”的 composition。
+        // 找到第一个九宫格数字。
         //
         // 例如：
-        //   好33   → 33
-        //   这和4 → 4
-        //   我是74 → 74
+        //   好33       -> firstDigit = 1
+        //   好33 22    -> firstDigit = 1
+        //   这和4      -> firstDigit = 2
         //
-        // 普通 T9：
-        //   42633
-        //
-        // 已选择拼音：
-        //   zhe'43
-        //
-        // 都不会进入这里。
-        val match = Regex("^(.*?)([2-9]+)$").matchEntire(preedit)
-            ?: return
+        // 重点：不能再取“最后一段数字”，
+        // 因为候选词选择后可能存在多个尚未完成的 segment。
+        val firstDigitIndex = preedit.indexOfFirst {
+            it in '2'..'9'
+        }
 
-        val prefix = match.groupValues[1]
-        val remainingDigits = match.groupValues[2]
+        if (firstDigitIndex <= 0) {
+            return
+        }
 
-        // 必须确认前面的内容包含汉字，否则普通数字输入
-        // 和已选择拼音的 zhe'43 都不能被当成“候选词 + 剩余数字”。
+        val prefix = preedit.substring(0, firstDigitIndex)
+
+        // 前面的内容必须包含汉字。
         if (
-            prefix.isEmpty() ||
             prefix.none {
                 Character.UnicodeScript.of(it.code) == Character.UnicodeScript.HAN
             }
         ) {
+            return
+        }
+
+        // 从第一个数字开始，保留所有后续的九宫格数字。
+        //
+        // 好33       -> 33
+        // 好33 22    -> 3322
+        //
+        // 中间的空格/segment 分隔符不参与 T9 数字串。
+        val remainingDigits = preedit
+            .substring(firstDigitIndex)
+            .filter { it in '2'..'9' }
+
+        if (remainingDigits.isEmpty()) {
             return
         }
 
@@ -209,7 +220,9 @@ class T9InputController(
         selectedQueue.clear()
         behaviorQueue.clear()
 
-        inputQueue.addAll(remainingDigits.map { it.toString() })
+        inputQueue.addAll(
+            remainingDigits.map { it.toString() }
+        )
 
         lastRimeInput = preedit
 
