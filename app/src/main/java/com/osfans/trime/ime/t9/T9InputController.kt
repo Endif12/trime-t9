@@ -43,12 +43,16 @@ class T9InputController(
     init {
         messageJob = rime.lifecycleScope.launch {
             rime.run { messageFlow }.collect { message ->
-                if (message is RimeMessage.CommitTextMessage) {
-                    val text = message.data.text
-                    if (!text.isNullOrEmpty()) {
-                        clear()
-                    }
-                }
+                // CommitTextMessage 不能在这里直接 clear T9 状态。
+                //
+                // 候选词选择时，Rime 可能先发 commit，
+                // 随后才发 composition。
+                //
+                // 此时我们还需要保留：
+                //   committedPrefix
+                //   cachedInputString
+                //
+                // 真正的状态同步由 onCompositionUpdated() 完成。
             }
         }
     }
@@ -399,6 +403,8 @@ class T9InputController(
             committedPrefix + preedit
         }
     }
+
+    fun getCommittedPrefix(): String = committedPrefix
 
     private fun fireCandidatesChanged() {
         onCandidatesChanged?.invoke(computeCandidates())

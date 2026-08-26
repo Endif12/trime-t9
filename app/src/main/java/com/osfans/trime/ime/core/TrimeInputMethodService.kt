@@ -926,25 +926,70 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
     internal fun updateComposingText(text: String) {
         val ic = currentInputConnection ?: return
 
-        val displayText =
-            t9InputController.getDisplayPreedit(text)
+        val committedPrefix = t9InputController.getCommittedPrefix()
 
         ic.beginBatchEdit()
 
-        if (composingText.isNotEmpty() || displayText.isNotEmpty()) {
+        try {
+            /*
+             * 如果之前的 composing 同时包含：
+             *
+             *   什么94 74
+             *
+             * 而新的 Rime preedit 已经变成：
+             *
+             *   yi'74
+             *
+             * 那么说明：
+             *
+             *   “什么”应该从 composing 区域中正式提交出去，
+             *   yi'74 才应该成为新的 composing。
+             *
+             * 注意：
+             * 如果“什么”本来已经是 committed text，
+             * composingText 就不会再以“什么”开头，
+             * 因此这里不会重复提交。
+             */
+            if (
+                committedPrefix.isNotEmpty() &&
+                composingText.startsWith(committedPrefix) &&
+                !text.startsWith(committedPrefix)
+            ) {
+                /*
+                 * 当前 composing 是整个：
+                 *
+                 *   什么94 74
+                 *
+                 * commitText("什么") 会把整个 composing region
+                 * 替换成“什么”，从而把它正式提交。
+                 */
+                ic.commitText(committedPrefix, 1)
+
+                /*
+                 * 现在：
+                 *
+                 *   committed text = 什么
+                 *
+                 * 接下来再建立：
+                 *
+                 *   composing = yi'74
+                 */
+            }
+
             if (!ic.getSelectedText(0).isNullOrEmpty()) {
                 ic.deleteSurroundingText(1, 0)
             }
 
-            ic.setComposingText(displayText, 1)
+            ic.setComposingText(text, 1)
 
-            if (displayText.isEmpty()) {
+            if (text.isEmpty()) {
                 ic.finishComposingText()
             }
-        }
 
-        composingText = displayText
-        ic.endBatchEdit()
+            composingText = text
+        } finally {
+            ic.endBatchEdit()
+        }
     }
 
     fun getActiveText(type: Int): String {
