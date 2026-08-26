@@ -221,7 +221,7 @@ class T9InputController(
         behaviorQueue.clear()
 
         inputQueue.addAll(
-            remainingDigits.map { it.toString() }
+            remainingDigits.map { it.toString() },
         )
 
         lastRimeInput = preedit
