@@ -94,21 +94,30 @@ class CompactCandidateDelegate : InputBroadcastReceiver {
         CompactCandidateViewAdapter(theme).apply {
             setOnItemClickListener { _, _, position ->
                 rime.launchOnReady {
-                    val before = it.getRawInput()
+                    val candidateText = items[position].text
+                    val beforeRaw = it.getRawInput()
+
+                    Timber.d(
+                        "T9DBG CANDIDATE_CLICK BEFORE: " +
+                            "position=$position, " +
+                            "candidate=[$candidateText], " +
+                            "beforeRaw=[$beforeRaw], " +
+                            "controller=${service.t9InputController.debugState()}"
+                    )
 
                     val result = it.selectCandidate(position, global = true)
 
-                    val after = it.getRawInput()
+                    val afterRaw = it.getRawInput()
                     val preedit = it.compositionCached.preedit.orEmpty()
                     val preview = it.compositionCached.commitTextPreview.orEmpty()
 
                     Timber.d(
-                        "T9 candidate click: " +
-                            "beforeRaw=[$before], " +
+                        "T9DBG CANDIDATE_CLICK AFTER: " +
                             "result=$result, " +
-                            "afterRaw=[$after], " +
+                            "afterRaw=[$afterRaw], " +
                             "preedit=[$preedit], " +
-                            "preview=[$preview]",
+                            "preview=[$preview], " +
+                            "controller=${service.t9InputController.debugState()}"
                     )
                 }
             }

@@ -207,6 +207,10 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
     }
 
     private fun handleRimeMessage(it: RimeMessage<*>) {
+        Timber.d(
+            "T9DBG RIME_MESSAGE: $it | " +
+                "controller=${t9InputController.debugState()}"
+        )
         when (it) {
             is RimeMessage.CommitTextMessage -> {
                 if (!it.data.text.isNullOrEmpty()) {

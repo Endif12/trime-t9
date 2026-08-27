@@ -5,6 +5,7 @@ import com.osfans.trime.core.RimeMessage
 import com.osfans.trime.daemon.RimeSession
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 class T9InputController(
     private val rime: RimeSession,
@@ -172,7 +173,14 @@ class T9InputController(
     }
 
     fun onCompositionUpdated(preedit: String) {
+        Timber.d(
+            "T9DBG onCompositionUpdated ENTER: " +
+                "preedit=[$preedit], " +
+                debugState()
+        )
+
         if (preedit.isEmpty()) {
+            Timber.d("T9DBG onCompositionUpdated EMPTY -> clear()")
             clear()
             return
         }
@@ -197,6 +205,11 @@ class T9InputController(
                 }
             ) {
                 committedPrefix = prefix
+                Timber.d(
+                    "T9DBG onCompositionUpdated PREFIX: " +
+                        "prefix=[$prefix], " +
+                        "committedPrefix=[$committedPrefix]"
+                )
 
                 val remainingDigits = preedit
                     .substring(firstDigitIndex)
@@ -207,6 +220,10 @@ class T9InputController(
                 }
 
                 cachedInputString = remainingDigits
+                Timber.d(
+                    "T9DBG onCompositionUpdated REMAINING: " +
+                        "remainingDigits=[$remainingDigits]"
+                )
 
                 inputQueue.clear()
                 selectedQueue.clear()
@@ -218,6 +235,10 @@ class T9InputController(
 
                 lastRimeInput = preedit
 
+                Timber.d(
+                    "T9DBG onCompositionUpdated APPLY: " +
+                        debugState()
+                )
                 fireCandidatesChanged()
                 return
             }
@@ -268,6 +289,11 @@ class T9InputController(
         raw: String,
         pinYin: String,
     ) {
+        Timber.d(
+            "T9DBG onSelectPinyin ENTER: " +
+                "pos=$pos, raw=[$raw], pinYin=[$pinYin], " +
+                debugState()
+        )
         selectedQueue.add(
             PinYinToken(
                 pos = pos,
@@ -277,6 +303,10 @@ class T9InputController(
         )
 
         behaviorQueue.add(Behavior.SELECT_PINYIN)
+        Timber.d(
+            "T9DBG onSelectPinyin AFTER QUEUE: " +
+                debugState()
+        )
         updateRimeInput()
         fireCandidatesChanged()
     }
@@ -313,6 +343,19 @@ class T9InputController(
     }
 
     fun buildRimeInput(): String {
+        Timber.d(
+            "T9DBG buildRimeInput ENTER: " +
+                debugState()
+        )
+
+        val input = cachedInputString
+
+        if (selectedQueue.isEmpty()) {
+            Timber.d(
+                "T9DBG buildRimeInput RESULT: [$input], selectedQueue empty"
+            )
+            return input
+        }
         val input = cachedInputString
 
         if (selectedQueue.isEmpty()) {
@@ -363,13 +406,27 @@ class T9InputController(
             cursor = rawEnd
         }
 
-        return result
+        val finalResult = result
             .append(input.substring(end))
             .toString()
+
+        Timber.d(
+            "T9DBG buildRimeInput RESULT: " +
+                "[$finalResult], " +
+                debugState()
+        )
+
+        return finalResult
     }
 
     fun updateRimeInput() {
         val input = buildRimeInput()
+
+        Timber.d(
+            "T9DBG updateRimeInput: " +
+                "setRawInput=[$input], " +
+                debugState()
+        )
         lastRimeInput = input
         rime.lifecycleScope.launch {
             rime.runOnReady {
@@ -405,6 +462,15 @@ class T9InputController(
     }
 
     fun getCommittedPrefix(): String = committedPrefix
+
+    fun debugState(): String {
+        return "cachedInput=[$cachedInputString], " +
+            "committedPrefix=[$committedPrefix], " +
+            "inputQueue=$inputQueue, " +
+            "selectedQueue=$selectedQueue, " +
+            "behaviorQueue=$behaviorQueue, " +
+            "lastRimeInput=[$lastRimeInput]"
+    }
 
     private fun fireCandidatesChanged() {
         onCandidatesChanged?.invoke(computeCandidates())
