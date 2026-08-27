@@ -356,11 +356,6 @@ class T9InputController(
             )
             return input
         }
-        val input = cachedInputString
-
-        if (selectedQueue.isEmpty()) {
-            return input
-        }
 
         val first = selectedQueue.first()
         val last = selectedQueue.last()
