@@ -176,7 +176,7 @@ class T9InputController(
         Timber.d(
             "T9DBG onCompositionUpdated ENTER: " +
                 "preedit=[$preedit], " +
-                debugState()
+                debugState(),
         )
 
         if (preedit.isEmpty()) {
@@ -208,7 +208,7 @@ class T9InputController(
                 Timber.d(
                     "T9DBG onCompositionUpdated PREFIX: " +
                         "prefix=[$prefix], " +
-                        "committedPrefix=[$committedPrefix]"
+                        "committedPrefix=[$committedPrefix]",
                 )
 
                 val remainingDigits = preedit
@@ -222,7 +222,7 @@ class T9InputController(
                 cachedInputString = remainingDigits
                 Timber.d(
                     "T9DBG onCompositionUpdated REMAINING: " +
-                        "remainingDigits=[$remainingDigits]"
+                        "remainingDigits=[$remainingDigits]",
                 )
 
                 inputQueue.clear()
@@ -237,7 +237,7 @@ class T9InputController(
 
                 Timber.d(
                     "T9DBG onCompositionUpdated APPLY: " +
-                        debugState()
+                        debugState(),
                 )
                 fireCandidatesChanged()
                 return
@@ -292,7 +292,7 @@ class T9InputController(
         Timber.d(
             "T9DBG onSelectPinyin ENTER: " +
                 "pos=$pos, raw=[$raw], pinYin=[$pinYin], " +
-                debugState()
+                debugState(),
         )
         selectedQueue.add(
             PinYinToken(
@@ -305,7 +305,7 @@ class T9InputController(
         behaviorQueue.add(Behavior.SELECT_PINYIN)
         Timber.d(
             "T9DBG onSelectPinyin AFTER QUEUE: " +
-                debugState()
+                debugState(),
         )
         updateRimeInput()
         fireCandidatesChanged()
@@ -345,14 +345,14 @@ class T9InputController(
     fun buildRimeInput(): String {
         Timber.d(
             "T9DBG buildRimeInput ENTER: " +
-                debugState()
+                debugState(),
         )
 
         val input = cachedInputString
 
         if (selectedQueue.isEmpty()) {
             Timber.d(
-                "T9DBG buildRimeInput RESULT: [$input], selectedQueue empty"
+                "T9DBG buildRimeInput RESULT: [$input], selectedQueue empty",
             )
             return input
         }
@@ -413,7 +413,7 @@ class T9InputController(
         Timber.d(
             "T9DBG buildRimeInput RESULT: " +
                 "[$finalResult], " +
-                debugState()
+                debugState(),
         )
 
         return finalResult
@@ -425,7 +425,7 @@ class T9InputController(
         Timber.d(
             "T9DBG updateRimeInput: " +
                 "setRawInput=[$input], " +
-                debugState()
+                debugState(),
         )
         lastRimeInput = input
         rime.lifecycleScope.launch {
@@ -463,14 +463,12 @@ class T9InputController(
 
     fun getCommittedPrefix(): String = committedPrefix
 
-    fun debugState(): String {
-        return "cachedInput=[$cachedInputString], " +
-            "committedPrefix=[$committedPrefix], " +
-            "inputQueue=$inputQueue, " +
-            "selectedQueue=$selectedQueue, " +
-            "behaviorQueue=$behaviorQueue, " +
-            "lastRimeInput=[$lastRimeInput]"
-    }
+    fun debugState(): String = "cachedInput=[$cachedInputString], " +
+        "committedPrefix=[$committedPrefix], " +
+        "inputQueue=$inputQueue, " +
+        "selectedQueue=$selectedQueue, " +
+        "behaviorQueue=$behaviorQueue, " +
+        "lastRimeInput=[$lastRimeInput]"
 
     private fun fireCandidatesChanged() {
         onCandidatesChanged?.invoke(computeCandidates())

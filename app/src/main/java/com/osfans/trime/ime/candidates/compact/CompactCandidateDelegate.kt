@@ -102,7 +102,7 @@ class CompactCandidateDelegate : InputBroadcastReceiver {
                             "position=$position, " +
                             "candidate=[$candidateText], " +
                             "beforeRaw=[$beforeRaw], " +
-                            "controller=${service.t9InputController.debugState()}"
+                            "controller=${service.t9InputController.debugState()}",
                     )
 
                     val result = it.selectCandidate(position, global = true)
@@ -117,7 +117,7 @@ class CompactCandidateDelegate : InputBroadcastReceiver {
                             "afterRaw=[$afterRaw], " +
                             "preedit=[$preedit], " +
                             "preview=[$preview], " +
-                            "controller=${service.t9InputController.debugState()}"
+                            "controller=${service.t9InputController.debugState()}",
                     )
                 }
             }
