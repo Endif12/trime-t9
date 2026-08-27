@@ -213,8 +213,12 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
         )
         when (it) {
             is RimeMessage.CommitTextMessage -> {
-                if (!it.data.text.isNullOrEmpty()) {
-                    commitText(it.data.text)
+                val text = it.data.text.orEmpty()
+
+                if (text.isNotEmpty()) {
+                    if (!t9InputController.handleCommitText(text)) {
+                        commitText(text)
+                    }
                 }
             }
             is RimeMessage.InlinePreeditMessage -> {
@@ -930,22 +934,40 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
     internal fun updateComposingText(text: String) {
         val ic = currentInputConnection ?: return
 
+        val prefix = t9InputController.getCommittedPrefix()
+
+        val displayText =
+            if (prefix.isNotEmpty()) {
+                if (text.startsWith(prefix)) {
+                    text
+                } else {
+                    prefix + text
+                }
+            } else {
+                text
+            }
+
+        Timber.d(
+            "T9DBG updateComposingText: " +
+                "rimeText=[$text], " +
+                "prefix=[$prefix], " +
+                "displayText=[$displayText]",
+        )
+
         ic.beginBatchEdit()
 
         try {
-            if (composingText.isNotEmpty() || text.isNotEmpty()) {
+            if (composingText.isNotEmpty() || displayText.isNotEmpty()) {
                 if (!ic.getSelectedText(0).isNullOrEmpty()) {
                     ic.deleteSurroundingText(1, 0)
                 }
 
-                ic.setComposingText(text, 1)
-
-                if (text.isEmpty()) {
-                    ic.finishComposingText()
-                }
+                ic.setComposingText(displayText, 1)
+            } else {
+                ic.finishComposingText()
             }
 
-            composingText = text
+            composingText = displayText
         } finally {
             ic.endBatchEdit()
         }

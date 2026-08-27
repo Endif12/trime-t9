@@ -34,6 +34,7 @@ class T9InputController(
     private var cachedInputString = ""
     private var committedPrefix = ""
     private var lastRimeInput = ""
+    private var candidateCommitPending = false
     private var messageJob: Job? = null
 
     companion object {
@@ -64,9 +65,28 @@ class T9InputController(
     }
 
     fun onDigitKey(digit: String) {
+        /*
+         * 如果上一次点击候选词后 Rime 已经把 composition 清空，
+         * 那么下一次输入数字应该从“新的 T9 输入”开始，
+         * 而不是把数字追加到上一段已经选完的 raw input。
+         *
+         * 注意：
+         * committedPrefix 保留，因为它仍然属于当前可编辑的长句。
+         */
+        if (candidateCommitPending) {
+            cachedInputString = ""
+            inputQueue.clear()
+            selectedQueue.clear()
+            behaviorQueue.clear()
+            lastRimeInput = ""
+
+            candidateCommitPending = false
+        }
+
         inputQueue.add(digit)
         cachedInputString += digit
         behaviorQueue.add(Behavior.NORMAL)
+
         fireCandidatesChanged()
     }
 
@@ -136,6 +156,35 @@ class T9InputController(
         return true
     }
 
+    fun onCandidateClicked(text: String) {
+        if (text.isEmpty()) {
+            return
+        }
+
+        committedPrefix += text
+        candidateCommitPending = true
+
+        Timber.d(
+            "T9DBG onCandidateClicked: " +
+                "text=[$text], " +
+                debugState(),
+        )
+    }
+
+    fun handleCommitText(text: String): Boolean {
+        if (candidateCommitPending) {
+            Timber.d(
+                "T9DBG handleCommitText INTERCEPT: " +
+                    "text=[$text], " +
+                    debugState(),
+            )
+
+            return true
+        }
+
+        return false
+    }
+
     fun onEscape(): Boolean {
         val hasInput =
             cachedInputString.isNotEmpty() ||
@@ -192,22 +241,19 @@ class T9InputController(
             it in '2'..'9'
         }
 
-        /*
-         * 情况 1：
-         *
-         * 什么94 74
-         *
-         * 第一个数字前面是已经选择的中文内容。
-         */
         if (firstDigitIndex > 0) {
             val prefix = preedit.substring(0, firstDigitIndex)
 
             if (
                 prefix.any {
-                    Character.UnicodeScript.of(it.code) == Character.UnicodeScript.HAN
+                    Character.UnicodeScript.of(it.code) ==
+                        Character.UnicodeScript.HAN
                 }
             ) {
                 committedPrefix = prefix
+
+                candidateCommitPending = false
+
                 Timber.d(
                     "T9DBG onCompositionUpdated PREFIX: " +
                         "prefix=[$prefix], " +
@@ -223,10 +269,6 @@ class T9InputController(
                 }
 
                 cachedInputString = remainingDigits
-                Timber.d(
-                    "T9DBG onCompositionUpdated REMAINING: " +
-                        "remainingDigits=[$remainingDigits]",
-                )
 
                 inputQueue.clear()
                 selectedQueue.clear()
@@ -242,20 +284,12 @@ class T9InputController(
                     "T9DBG onCompositionUpdated APPLY: " +
                         debugState(),
                 )
+
                 fireCandidatesChanged()
                 return
             }
         }
 
-        /*
-         * 情况 2：
-         *
-         * yi'74
-         *
-         * 这是已经选择了一个拼音之后的 Rime preedit。
-         *
-         * 它没有中文前缀，但不能把之前保存的 committedPrefix 清掉。
-         */
         lastRimeInput = preedit
     }
 

@@ -105,6 +105,8 @@ class CompactCandidateDelegate : InputBroadcastReceiver {
                             "controller=${service.t9InputController.debugState()}",
                     )
 
+                    service.t9InputController.onCandidateClicked(candidateText)
+
                     val result = it.selectCandidate(position, global = true)
 
                     val afterRaw = it.getRawInput()
