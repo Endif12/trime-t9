@@ -33,8 +33,8 @@ class T9InputController(
 
     private var cachedInputString = ""
     private var committedPrefix = ""
+    private var pendingCandidateCommit: String? = null
     private var lastRimeInput = ""
-    private var candidateCommitPending = false
     private var messageJob: Job? = null
 
     companion object {
@@ -161,28 +161,14 @@ class T9InputController(
             return
         }
 
-        committedPrefix += text
-        candidateCommitPending = true
+        pendingCandidateCommit = text
 
         Timber.d(
             "T9DBG onCandidateClicked: " +
                 "text=[$text], " +
+                "pendingCandidateCommit=[$pendingCandidateCommit], " +
                 debugState(),
         )
-    }
-
-    fun handleCommitText(text: String): Boolean {
-        if (candidateCommitPending) {
-            Timber.d(
-                "T9DBG handleCommitText INTERCEPT: " +
-                    "text=[$text], " +
-                    debugState(),
-            )
-
-            return true
-        }
-
-        return false
     }
 
     fun onEscape(): Boolean {
@@ -227,6 +213,18 @@ class T9InputController(
                 "preedit=[$preedit], " +
                 debugState(),
         )
+
+        val pendingCandidate = pendingCandidateCommit
+
+        if (pendingCandidate != null && preedit.isNotEmpty()) {
+            pendingCandidateCommit = null
+
+            Timber.d(
+                "T9DBG onCompositionUpdated PENDING CANDIDATE -> PARTIAL: " +
+                    "candidate=[$pendingCandidate], " +
+                    "preedit=[$preedit]",
+            )
+        }
 
         if (preedit.isEmpty()) {
             Timber.d(
@@ -291,6 +289,16 @@ class T9InputController(
         }
 
         lastRimeInput = preedit
+    }
+
+    fun onRimeCommitText(text: String) {
+        pendingCandidateCommit = text
+
+        Timber.d(
+            "T9DBG onRimeCommitText: " +
+                "pendingCandidateCommit=[$pendingCandidateCommit], " +
+                debugState(),
+        )
     }
 
     fun onSegmentKey(): Boolean {
@@ -478,6 +486,15 @@ class T9InputController(
     }
 
     fun getCommittedPrefix(): String = committedPrefix
+
+    fun hasPendingCandidateCommit(): Boolean =
+        pendingCandidateCommit != null
+
+    fun takePendingCandidateCommit(): String? {
+        val text = pendingCandidateCommit
+        pendingCandidateCommit = null
+        return text
+    }
 
     fun debugState(): String = "cachedInput=[$cachedInputString], " +
         "committedPrefix=[$committedPrefix], " +

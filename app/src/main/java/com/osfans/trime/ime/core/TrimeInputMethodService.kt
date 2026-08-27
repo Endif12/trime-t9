@@ -216,9 +216,13 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
                 val text = it.data.text.orEmpty()
 
                 if (text.isNotEmpty()) {
-                    if (!t9InputController.handleCommitText(text)) {
-                        commitText(text)
-                    }
+                    t9InputController.onRimeCommitText(text)
+
+                    Timber.d(
+                        "T9DBG RIME_COMMIT_STORED: " +
+                            "text=[$text], " +
+                            "controller=${t9InputController.debugState()}",
+                    )
                 }
             }
             is RimeMessage.InlinePreeditMessage -> {
