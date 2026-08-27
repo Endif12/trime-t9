@@ -440,22 +440,6 @@ class T9InputController(
         fireCandidatesChanged()
     }
 
-    fun getDisplayPreedit(preedit: String): String {
-        if (preedit.isEmpty()) {
-            return ""
-        }
-
-        if (committedPrefix.isEmpty()) {
-            return preedit
-        }
-
-        return if (preedit.startsWith(committedPrefix)) {
-            preedit
-        } else {
-            committedPrefix + preedit
-        }
-    }
-
     fun getCommittedPrefix(): String = committedPrefix
 
     fun debugState(): String = "cachedInput=[$cachedInputString], " +
