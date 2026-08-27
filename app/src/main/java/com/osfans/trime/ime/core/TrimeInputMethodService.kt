@@ -930,24 +930,22 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
     internal fun updateComposingText(text: String) {
         val ic = currentInputConnection ?: return
 
-        setComposingText(text, 1)
-
         ic.beginBatchEdit()
 
         try {
-            if (composingText.isNotEmpty() || displayText.isNotEmpty()) {
+            if (composingText.isNotEmpty() || text.isNotEmpty()) {
                 if (!ic.getSelectedText(0).isNullOrEmpty()) {
                     ic.deleteSurroundingText(1, 0)
                 }
 
-                ic.setComposingText(displayText, 1)
+                ic.setComposingText(text, 1)
 
-                if (displayText.isEmpty()) {
+                if (text.isEmpty()) {
                     ic.finishComposingText()
                 }
             }
 
-            composingText = displayText
+            composingText = text
         } finally {
             ic.endBatchEdit()
         }
