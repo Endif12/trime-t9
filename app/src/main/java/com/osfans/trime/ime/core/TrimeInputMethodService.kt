@@ -930,18 +930,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
     internal fun updateComposingText(text: String) {
         val ic = currentInputConnection ?: return
 
-        val prefix = t9InputController.getCommittedPrefix()
-
-        val displayText =
-            if (prefix.isNotEmpty()) {
-                if (text.startsWith(prefix)) {
-                    text
-                } else {
-                    prefix + text
-                }
-            } else {
-                text
-            }
+        setComposingText(text, 1)
 
         ic.beginBatchEdit()
 

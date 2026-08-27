@@ -180,8 +180,11 @@ class T9InputController(
         )
 
         if (preedit.isEmpty()) {
-            Timber.d("T9DBG onCompositionUpdated EMPTY -> clear()")
-            clear()
+            Timber.d(
+                "T9DBG onCompositionUpdated EMPTY -> keep T9 state: " +
+                    debugState(),
+            )
+            lastRimeInput = ""
             return
         }
 
