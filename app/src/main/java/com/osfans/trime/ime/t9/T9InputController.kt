@@ -264,6 +264,11 @@ class T9InputController(
                         Character.UnicodeScript.HAN
                 }
             ) {
+                // 避免重复的 composition 消息覆盖已保存的前缀数字（二次 ENTER）
+                if (prefix == committedPrefix && committedPrefixDigits.isNotEmpty()) {
+                    lastRimeInput = preedit
+                    return
+                }
                 committedPrefix = prefix
                 // 保存前缀对应的原始数字串，用于后续退格拆分（如 什么 -> 743663）
                 val oldCached = cachedInputString
@@ -272,17 +277,26 @@ class T9InputController(
                     .filter { it in '2'..'9' }
 
                 if (remainingDigits.isEmpty()) {
+                    // 无剩余数字时，整个 oldCached 即为前缀数字（如仅剩 什么）
+                    if (oldCached.isNotEmpty()) {
+                        committedPrefixDigits = oldCached
+                    }
                     return
                 }
 
                 // 计算前缀数字：原 cached 去掉剩余部分
-                committedPrefixDigits =
+                val computedDigits =
                     if (oldCached.endsWith(remainingDigits)) {
                         oldCached.substring(0, oldCached.length - remainingDigits.length)
                     } else {
-                        // 回退：若无法对应则清空，避免错误回退
                         ""
                     }
+                // 仅在还没记录时保存，避免二次覆盖为空
+                if (committedPrefixDigits.isEmpty() && computedDigits.isNotEmpty()) {
+                    committedPrefixDigits = computedDigits
+                } else if (computedDigits.isNotEmpty()) {
+                    committedPrefixDigits = computedDigits
+                }
 
                 Timber.d(
                     "T9DBG onCompositionUpdated PREFIX: " +
