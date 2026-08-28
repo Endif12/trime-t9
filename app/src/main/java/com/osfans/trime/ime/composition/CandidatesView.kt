@@ -93,7 +93,16 @@ class CandidatesView(
             ctx,
             theme,
             setupPreeditView = { setPaddingDp(3, 1, 3, 1) },
-            onMoveCursor = { pos -> rime.launchOnReady { it.moveCursorPos(pos) } },
+            onMoveCursor = { pos ->
+                val prefix = service.t9InputController.getCommittedPrefix()
+                val adjustedPos =
+                    if (prefix.isNotEmpty()) {
+                        (pos - prefix.length).coerceAtLeast(0)
+                    } else {
+                        pos
+                    }
+                rime.launchOnReady { it.moveCursorPos(adjustedPos) }
+            },
         )
 
     private val candidatesUi =
@@ -130,7 +139,7 @@ class CandidatesView(
     override fun handleRimeMessage(it: RimeMessage<*>) {
         when (it) {
             is RimeMessage.CompositionMessage -> {
-                composition = it.data
+                composition = mergeCompositionWithT9Prefix(it.data)
                 updateUi()
             }
             is RimeMessage.PagedCandidatesMessage -> {
@@ -139,6 +148,34 @@ class CandidatesView(
             }
             else -> {}
         }
+    }
+
+    private fun mergeCompositionWithT9Prefix(data: CompositionProto): CompositionProto {
+        if (!service.t9InputController.hasT9State()) return data
+        val prefix = service.t9InputController.getCommittedPrefix()
+        if (prefix.isEmpty()) return data
+        val preedit = data.preedit.orEmpty()
+        if (preedit.startsWith(prefix)) return data
+        if (preedit.isEmpty()) {
+            return CompositionProto(
+                length = prefix.length,
+                cursorPos = prefix.length,
+                selStart = 0,
+                selEnd = prefix.length,
+                preedit = prefix,
+                commitTextPreview = prefix,
+            )
+        }
+        val mergedPreedit = prefix + preedit
+        val prefixLen = prefix.length
+        return data.copy(
+            length = mergedPreedit.length,
+            cursorPos = data.cursorPos + prefixLen,
+            selStart = data.selStart + prefixLen,
+            selEnd = data.selEnd + prefixLen,
+            preedit = mergedPreedit,
+            commitTextPreview = data.commitTextPreview?.let { prefix + it } ?: mergedPreedit,
+        )
     }
 
     private fun evaluateVisibility(): Boolean = !composition.preedit.isNullOrEmpty() ||

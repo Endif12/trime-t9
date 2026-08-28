@@ -74,6 +74,23 @@ class T9InputController(
 
     fun onBackspace(): Boolean {
         if (cachedInputString.isEmpty()) {
+            if (committedPrefix.isNotEmpty()) {
+                committedPrefix = committedPrefix.dropLast(1)
+                fireCandidatesChanged()
+                // 触发 Rime 清空以让 Service 通过 updateComposingText 刷新为剩余 prefix
+                rime.lifecycleScope.launch {
+                    rime.runOnReady {
+                        clearComposition()
+                    }
+                }
+                if (committedPrefix.isEmpty()) {
+                    inputQueue.clear()
+                    selectedQueue.clear()
+                    behaviorQueue.clear()
+                    lastRimeInput = ""
+                }
+                return true
+            }
             return false
         }
 
