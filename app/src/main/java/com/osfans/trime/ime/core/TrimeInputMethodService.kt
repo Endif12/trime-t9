@@ -216,17 +216,75 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
                 val text = it.data.text.orEmpty()
 
                 if (text.isNotEmpty()) {
-                    t9InputController.onRimeCommitText(text)
+                    if (t9InputController.hasPendingCandidateCommit()) {
+                        t9InputController.onRimeCommitText(text)
 
-                    Timber.d(
-                        "T9DBG RIME_COMMIT_STORED: " +
-                            "text=[$text], " +
-                            "controller=${t9InputController.debugState()}",
-                    )
+                        Timber.d(
+                            "T9DBG RIME_COMMIT_STORED: " +
+                                "text=[$text], " +
+                                "controller=${t9InputController.debugState()}",
+                        )
+                    } else {
+                        commitText(text)
+
+                        Timber.d(
+                            "T9DBG RIME_COMMIT_DIRECT: " +
+                                "text=[$text], " +
+                                "controller=${t9InputController.debugState()}",
+                        )
+                    }
                 }
             }
             is RimeMessage.InlinePreeditMessage -> {
                 updateComposingText(it.data)
+            }
+            is RimeMessage.CompositionMessage -> {
+                val preedit = it.data.preedit.orEmpty()
+
+                Timber.d(
+                    "T9DBG RIME_COMPOSITION: " +
+                        "preedit=[$preedit], " +
+                        "controller=${t9InputController.debugState()}",
+                )
+
+                if (
+                    preedit.isEmpty() &&
+                    t9InputController.hasPendingCandidateCommit()
+                ) {
+                    val candidate = t9InputController.takePendingCandidateCommit()
+                        ?: return
+
+                    val prefix = t9InputController.getCommittedPrefix()
+                    val finalText = prefix + candidate
+
+                    Timber.d(
+                        "T9DBG RIME_COMPOSITION FINAL: " +
+                            "prefix=[$prefix], " +
+                            "candidate=[$candidate], " +
+                            "finalText=[$finalText]",
+                    )
+
+                    val ic = currentInputConnection
+
+                    if (ic != null) {
+                        ic.beginBatchEdit()
+
+                        try {
+                            ic.finishComposingText()
+                            ic.commitText(finalText, 1)
+                        } finally {
+                            ic.endBatchEdit()
+                        }
+                    }
+
+                    t9InputController.clear()
+                    composingText = ""
+
+                    return
+                }
+
+                t9InputController.onCompositionUpdated(preedit)
+                updateComposingText(preedit)
             }
             is RimeMessage.KeyMessage ->
                 it.data.let msg@{

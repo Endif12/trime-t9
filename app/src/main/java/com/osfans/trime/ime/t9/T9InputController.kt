@@ -461,6 +461,7 @@ class T9InputController(
         behaviorQueue.clear()
         cachedInputString = ""
         committedPrefix = ""
+        pendingCandidateCommit = null
         lastRimeInput = ""
         fireCandidatesChanged()
     }
