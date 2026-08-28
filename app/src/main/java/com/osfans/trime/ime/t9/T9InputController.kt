@@ -65,24 +65,6 @@ class T9InputController(
     }
 
     fun onDigitKey(digit: String) {
-        /*
-         * 如果上一次点击候选词后 Rime 已经把 composition 清空，
-         * 那么下一次输入数字应该从“新的 T9 输入”开始，
-         * 而不是把数字追加到上一段已经选完的 raw input。
-         *
-         * 注意：
-         * committedPrefix 保留，因为它仍然属于当前可编辑的长句。
-         */
-        if (candidateCommitPending) {
-            cachedInputString = ""
-            inputQueue.clear()
-            selectedQueue.clear()
-            behaviorQueue.clear()
-            lastRimeInput = ""
-
-            candidateCommitPending = false
-        }
-
         inputQueue.add(digit)
         cachedInputString += digit
         behaviorQueue.add(Behavior.NORMAL)
@@ -249,8 +231,6 @@ class T9InputController(
                 }
             ) {
                 committedPrefix = prefix
-
-                candidateCommitPending = false
 
                 Timber.d(
                     "T9DBG onCompositionUpdated PREFIX: " +
