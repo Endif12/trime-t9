@@ -270,8 +270,12 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
                         ic.beginBatchEdit()
 
                         try {
+                            // 用新的 composing text 直接替换当前 T9 组合区，
+                            // 然后立刻结束 composing。
+                            // 这样最终文字会作为“已经提交”的文字存在，
+                            // 而不是留下一个带下划线的 composing 区域。
+                            ic.setComposingText(finalText, 1)
                             ic.finishComposingText()
-                            ic.commitText(finalText, 1)
                         } finally {
                             ic.endBatchEdit()
                         }
