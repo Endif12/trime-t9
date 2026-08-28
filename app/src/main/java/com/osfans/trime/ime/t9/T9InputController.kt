@@ -265,14 +265,18 @@ class T9InputController(
                         Character.UnicodeScript.HAN
                 }
             ) {
-                // 避免重复消息
+                val oldCached = cachedInputString
+                val remainingPart = preedit.substring(firstNonHanIndex)
+                val remainingDigits = remainingPart.filter { it in '2'..'9' }
+                // 避免重复消息：同一 preedit 二次回调（Service+InputBar）或已含前缀的重复
                 if (prefix == committedPrefix && committedPrefixDigits.isNotEmpty()) {
                     lastRimeInput = preedit
                     return
                 }
-                val oldCached = cachedInputString
-                val remainingPart = preedit.substring(firstNonHanIndex)
-                val remainingDigits = remainingPart.filter { it in '2'..'9' }
+                if (committedPrefix.isNotEmpty() && committedPrefix.endsWith(prefix) && oldCached == remainingDigits) {
+                    lastRimeInput = preedit
+                    return
+                }
 
                 if (remainingDigits.isEmpty()) {
                     if (oldCached.isNotEmpty() && committedPrefixDigits.isEmpty()) {
