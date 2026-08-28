@@ -272,12 +272,9 @@ class T9InputController(
     }
 
     fun onRimeCommitText(text: String) {
-        pendingCandidateCommit = text
-
         Timber.d(
-            "T9DBG onRimeCommitText: " +
-                "pendingCandidateCommit=[$pendingCandidateCommit], " +
-                debugState(),
+            "T9DBG onRimeCommitText IGNORED: text=[$text], " +
+                "controller=${debugState()}",
         )
     }
 
@@ -306,6 +303,10 @@ class T9InputController(
 
         return false
     }
+
+    fun hasT9State(): Boolean = cachedInputString.isNotEmpty() ||
+        committedPrefix.isNotEmpty() ||
+        selectedQueue.isNotEmpty()
 
     fun isSegmentKeyCode(keyEventCode: Int): Boolean = keyEventCode == KeyEvent.KEYCODE_APOSTROPHE
 

@@ -216,27 +216,27 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
                 val text = it.data.text.orEmpty()
 
                 if (text.isNotEmpty()) {
-                    if (t9InputController.hasPendingCandidateCommit()) {
-                        t9InputController.onRimeCommitText(text)
-
-                        Timber.d(
-                            "T9DBG RIME_COMMIT_STORED: " +
-                                "text=[$text], " +
-                                "controller=${t9InputController.debugState()}",
-                        )
-                    } else {
+                    if (t9InputController.hasT9State()) {
+                        if (t9InputController.hasPendingCandidateCommit()) {
+                            Timber.d(
+                                "T9DBG RIME_COMMIT_IGNORED_PENDING: text=[$text], " +
+                                    "controller=${t9InputController.debugState()}",
+                            )
+                        } else {
+                            Timber.d(
+                                "T9DBG RIME_COMMIT_IGNORED_T9: text=[$text], " +
+                                    "controller=${t9InputController.debugState()}",
+                            )
+                        }
+                    } else if (text.isNotEmpty()) {
                         commitText(text)
-
-                        Timber.d(
-                            "T9DBG RIME_COMMIT_DIRECT: " +
-                                "text=[$text], " +
-                                "controller=${t9InputController.debugState()}",
-                        )
                     }
                 }
             }
             is RimeMessage.InlinePreeditMessage -> {
-                updateComposingText(it.data)
+                if (!t9InputController.hasT9State()) {
+                    updateComposingText(it.data)
+                }
             }
             is RimeMessage.CompositionMessage -> {
                 val preedit = it.data.preedit.orEmpty()
@@ -270,12 +270,9 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
                         ic.beginBatchEdit()
 
                         try {
-                            // 用新的 composing text 直接替换当前 T9 组合区，
-                            // 然后立刻结束 composing。
-                            // 这样最终文字会作为“已经提交”的文字存在，
-                            // 而不是留下一个带下划线的 composing 区域。
-                            ic.setComposingText(finalText, 1)
-                            ic.finishComposingText()
+                            commitText(finalText)
+                            t9InputController.clear()
+                            composingText = ""
                         } finally {
                             ic.endBatchEdit()
                         }
@@ -288,7 +285,10 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
                 }
 
                 t9InputController.onCompositionUpdated(preedit)
-                updateComposingText(preedit)
+
+                if (!t9InputController.hasT9State()) {
+                    updateComposingText(preedit)
+                }
             }
             is RimeMessage.KeyMessage ->
                 it.data.let msg@{

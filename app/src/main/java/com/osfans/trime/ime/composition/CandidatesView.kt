@@ -102,6 +102,15 @@ class CandidatesView(
             theme,
             onCandidateClick = { index ->
                 rime.launchOnReady {
+                    val candidate = candidates.candidates.getOrNull(index)
+
+                    if (
+                        candidate != null &&
+                        service.t9InputController.hasT9State()
+                    ) {
+                        service.t9InputController.onCandidateClicked(candidate.text)
+                    }
+
                     if (it.selectCandidate(index, global = false)) {
                         service.t9InputController.onCompositionUpdated(
                             it.compositionCached.preedit.orEmpty(),
