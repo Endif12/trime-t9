@@ -77,14 +77,25 @@ class T9InputController(
         if (cachedInputString.isEmpty()) {
             if (committedPrefix.isNotEmpty()) {
                 if (committedPrefixDigits.isNotEmpty()) {
-                    // 将已固化的汉字前缀还原为数字串，支持 shenme -> shen'63 -> 7436 的逐步拆分
-                    cachedInputString = committedPrefixDigits
-                    inputQueue.clear()
-                    inputQueue.addAll(cachedInputString.map { it.toString() })
+                    val pinyin = getPinyinForDigits(committedPrefixDigits)
+                    val newCached = committedPrefixDigits
                     committedPrefix = ""
                     committedPrefixDigits = ""
+                    cachedInputString = newCached
+                    inputQueue.clear()
+                    inputQueue.addAll(newCached.map { it.toString() })
                     selectedQueue.clear()
                     behaviorQueue.clear()
+                    if (pinyin != null) {
+                        selectedQueue.add(
+                            PinYinToken(
+                                pos = 0,
+                                raw = newCached,
+                                pinYin = pinyin,
+                            ),
+                        )
+                        behaviorQueue.add(Behavior.SELECT_PINYIN)
+                    }
                     updateRimeInput()
                     fireCandidatesChanged()
                     return true
@@ -108,65 +119,116 @@ class T9InputController(
             return false
         }
 
-        // 最后一个已选拼音在原始数字串中的结束位置。
-        // 例如：
-        // 94354 + 选择 zhe
-        // selectedQueue.last() = zhe, pos=0, raw.length=3
-        // lastSelectedEnd = 3
-        val lastSelectedEnd =
-            selectedQueue.lastOrNull()?.let {
-                it.pos + it.raw.length
-            } ?: 0
-
-        when {
-            // 还有“已选拼音”后面的未锁定输入。
-            // 优先删除这些输入，而不是取消前面已经锁定的拼音。
-            cachedInputString.length > lastSelectedEnd -> {
-                cachedInputString = cachedInputString.dropLast(1)
-
-                if (inputQueue.isNotEmpty()) {
-                    inputQueue.removeLast()
+        // 优先处理已提交汉字：汉字 -> 拼音 -> 数字（满足 什么9474 -> shenme9474 -> 7436639474）
+        if (committedPrefix.isNotEmpty()) {
+            if (committedPrefixDigits.isNotEmpty()) {
+                val prefixDigits = committedPrefixDigits
+                val remaining = cachedInputString
+                val newCached = prefixDigits + remaining
+                val pinyin = getPinyinForDigits(prefixDigits)
+                committedPrefix = ""
+                committedPrefixDigits = ""
+                cachedInputString = newCached
+                inputQueue.clear()
+                inputQueue.addAll(newCached.map { it.toString() })
+                selectedQueue.clear()
+                behaviorQueue.clear()
+                if (pinyin != null) {
+                    selectedQueue.add(
+                        PinYinToken(
+                            pos = 0,
+                            raw = prefixDigits,
+                            pinYin = pinyin,
+                        ),
+                    )
+                    behaviorQueue.add(Behavior.SELECT_PINYIN)
                 }
+                updateRimeInput()
+                fireCandidatesChanged()
+                return true
             }
-
-            // 没有未锁定尾部了，才取消最后一个已选拼音。
-            selectedQueue.isNotEmpty() -> {
-                selectedQueue.removeLast()
+            // 无数字记录时逐字删汉字
+            committedPrefix = committedPrefix.dropLast(1)
+            if (committedPrefix.isEmpty()) {
+                committedPrefixDigits = ""
             }
-
-            // 完全没有已选拼音，就是普通 T9 输入。
-            else -> {
-                cachedInputString = cachedInputString.dropLast(1)
-
-                if (inputQueue.isNotEmpty()) {
-                    inputQueue.removeLast()
-                }
-            }
-        }
-
-        // T9 已经完全清空。
-        if (cachedInputString.isEmpty()) {
-            inputQueue.clear()
-            selectedQueue.clear()
-            behaviorQueue.clear()
-            lastRimeInput = ""
-
             fireCandidatesChanged()
-
             rime.lifecycleScope.launch {
-                rime.runOnReady {
-                    clearComposition()
-                }
+                rime.runOnReady { clearComposition() }
             }
-
             return true
         }
 
-        // 本地状态改变后，Rime 也必须立即同步。
-        updateRimeInput()
-        fireCandidatesChanged()
+        // 已有拼音选择时，优先将拼音还原为数字
+        if (selectedQueue.isNotEmpty()) {
+            selectedQueue.removeLast()
+            // 若移除后仍有前序拼音，保留；否则回到纯数字
+            if (selectedQueue.isEmpty()) {
+                behaviorQueue.clear()
+            } else {
+                // 移除对应的 behavior
+                if (behaviorQueue.isNotEmpty()) {
+                    behaviorQueue.removeLast()
+                }
+            }
+            updateRimeInput()
+            fireCandidatesChanged()
+            return true
+        }
 
-        return true
+        // 仅剩数字时，从末尾逐位删除
+        if (cachedInputString.isNotEmpty()) {
+            cachedInputString = cachedInputString.dropLast(1)
+            if (inputQueue.isNotEmpty()) {
+                inputQueue.removeLast()
+            }
+            if (cachedInputString.isEmpty()) {
+                inputQueue.clear()
+                selectedQueue.clear()
+                behaviorQueue.clear()
+                lastRimeInput = ""
+                fireCandidatesChanged()
+                rime.lifecycleScope.launch {
+                    rime.runOnReady { clearComposition() }
+                }
+                return true
+            }
+            updateRimeInput()
+            fireCandidatesChanged()
+            return true
+        }
+
+        return false
+    }
+
+    private fun getPinyinForDigits(digits: String): String? {
+        if (digits.isEmpty()) return null
+        val candidates = T9PinYin.possibleCombinations(digits)
+        if (candidates.isEmpty()) return null
+        // 优先选长度与数字串等长且映射完全一致的拼音（如 743663 -> shenme）
+        for (pinyin in candidates) {
+            if (pinyin.length != digits.length) continue
+            val mapped = buildString {
+                for (c in pinyin) {
+                    append(
+                        when (c) {
+                            in 'a'..'c' -> '2'
+                            in 'd'..'f' -> '3'
+                            in 'g'..'i' -> '4'
+                            in 'j'..'l' -> '5'
+                            in 'm'..'o' -> '6'
+                            in 'p'..'s' -> '7'
+                            in 't'..'v' -> '8'
+                            in 'w'..'z' -> '9'
+                            else -> c
+                        },
+                    )
+                }
+            }
+            if (mapped == digits) return pinyin
+        }
+        // 退化：取最长候选
+        return candidates.firstOrNull()
     }
 
     fun onCandidateClicked(text: String) {
