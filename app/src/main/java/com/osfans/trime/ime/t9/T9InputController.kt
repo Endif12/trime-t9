@@ -487,8 +487,7 @@ class T9InputController(
 
     fun getCommittedPrefix(): String = committedPrefix
 
-    fun hasPendingCandidateCommit(): Boolean =
-        pendingCandidateCommit != null
+    fun hasPendingCandidateCommit(): Boolean = pendingCandidateCommit != null
 
     fun takePendingCandidateCommit(): String? {
         val text = pendingCandidateCommit
