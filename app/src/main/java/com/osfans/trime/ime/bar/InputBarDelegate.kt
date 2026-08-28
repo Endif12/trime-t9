@@ -252,9 +252,11 @@ class InputBarDelegate : InputBroadcastReceiver {
     }
 
     override fun onCandidateListUpdate(data: Candidates.Bulk) {
+        val t9HasCandidates = service.t9InputController.computeCandidates().isNotEmpty()
+        val isEmpty = data.candidates.isEmpty() && !t9HasCandidates
         barStateMachine.push(
             QuickBarStateMachine.TransitionEvent.CandidatesUpdated,
-            QuickBarStateMachine.BooleanKey.CandidateEmpty to data.candidates.isEmpty(),
+            QuickBarStateMachine.BooleanKey.CandidateEmpty to isEmpty,
         )
     }
 
@@ -276,6 +278,12 @@ class InputBarDelegate : InputBroadcastReceiver {
             service.t9InputController.onCandidatesChanged = { tokens ->
                 t9PinyinUi.post {
                     t9PinyinUi.updateItems(tokens)
+                }
+                if (tokens.isNotEmpty()) {
+                    barStateMachine.push(
+                        QuickBarStateMachine.TransitionEvent.CandidatesUpdated,
+                        QuickBarStateMachine.BooleanKey.CandidateEmpty to false,
+                    )
                 }
             }
             visibility =

@@ -234,7 +234,11 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
                 }
             }
             is RimeMessage.InlinePreeditMessage -> {
-                updateComposingText(it.data)
+                if (t9InputController.hasT9State()) {
+                    updateComposingText("")
+                } else {
+                    updateComposingText(it.data)
+                }
             }
             is RimeMessage.CompositionMessage -> {
                 val preedit = it.data.preedit.orEmpty()
@@ -283,7 +287,11 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
                 }
 
                 t9InputController.onCompositionUpdated(preedit)
-                updateComposingText(preedit)
+                if (t9InputController.hasT9State()) {
+                    updateComposingText("")
+                } else {
+                    updateComposingText(preedit)
+                }
             }
             is RimeMessage.KeyMessage ->
                 it.data.let msg@{
