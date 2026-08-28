@@ -155,7 +155,6 @@ class CandidatesView(
         val prefix = service.t9InputController.getCommittedPrefix()
         if (prefix.isEmpty()) return data
         val preedit = data.preedit.orEmpty()
-        if (preedit.startsWith(prefix)) return data
         if (preedit.isEmpty()) {
             return CompositionProto(
                 length = prefix.length,
@@ -166,13 +165,20 @@ class CandidatesView(
                 commitTextPreview = prefix,
             )
         }
+        if (preedit.startsWith(prefix)) {
+            // 已含前缀，仅需将高亮扩展到全部，使 什么 也为彩色而非黑白固化
+            return data.copy(
+                selStart = 0,
+                selEnd = data.length,
+            )
+        }
         val mergedPreedit = prefix + preedit
         val prefixLen = prefix.length
         return data.copy(
             length = mergedPreedit.length,
             cursorPos = data.cursorPos + prefixLen,
-            selStart = data.selStart + prefixLen,
-            selEnd = data.selEnd + prefixLen,
+            selStart = 0,
+            selEnd = mergedPreedit.length,
             preedit = mergedPreedit,
             commitTextPreview = data.commitTextPreview?.let { prefix + it } ?: mergedPreedit,
         )

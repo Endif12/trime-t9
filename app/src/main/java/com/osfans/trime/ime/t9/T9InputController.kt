@@ -33,6 +33,7 @@ class T9InputController(
 
     private var cachedInputString = ""
     private var committedPrefix = ""
+    private var committedPrefixDigits = ""
     private var pendingCandidateCommit: String? = null
     private var lastRimeInput = ""
     private var messageJob: Job? = null
@@ -75,15 +76,28 @@ class T9InputController(
     fun onBackspace(): Boolean {
         if (cachedInputString.isEmpty()) {
             if (committedPrefix.isNotEmpty()) {
+                if (committedPrefixDigits.isNotEmpty()) {
+                    // 将已固化的汉字前缀还原为数字串，支持 shenme -> shen'63 -> 7436 的逐步拆分
+                    cachedInputString = committedPrefixDigits
+                    inputQueue.clear()
+                    inputQueue.addAll(cachedInputString.map { it.toString() })
+                    committedPrefix = ""
+                    committedPrefixDigits = ""
+                    selectedQueue.clear()
+                    behaviorQueue.clear()
+                    updateRimeInput()
+                    fireCandidatesChanged()
+                    return true
+                }
                 committedPrefix = committedPrefix.dropLast(1)
                 fireCandidatesChanged()
-                // 触发 Rime 清空以让 Service 通过 updateComposingText 刷新为剩余 prefix
                 rime.lifecycleScope.launch {
                     rime.runOnReady {
                         clearComposition()
                     }
                 }
                 if (committedPrefix.isEmpty()) {
+                    committedPrefixDigits = ""
                     inputQueue.clear()
                     selectedQueue.clear()
                     behaviorQueue.clear()
@@ -174,7 +188,8 @@ class T9InputController(
         val hasInput =
             cachedInputString.isNotEmpty() ||
                 selectedQueue.isNotEmpty() ||
-                behaviorQueue.isNotEmpty()
+                behaviorQueue.isNotEmpty() ||
+                committedPrefix.isNotEmpty()
 
         if (!hasInput) {
             return false
@@ -184,6 +199,8 @@ class T9InputController(
         selectedQueue.clear()
         behaviorQueue.clear()
         cachedInputString = ""
+        committedPrefix = ""
+        committedPrefixDigits = ""
         lastRimeInput = ""
 
         fireCandidatesChanged()
@@ -248,13 +265,8 @@ class T9InputController(
                 }
             ) {
                 committedPrefix = prefix
-
-                Timber.d(
-                    "T9DBG onCompositionUpdated PREFIX: " +
-                        "prefix=[$prefix], " +
-                        "committedPrefix=[$committedPrefix]",
-                )
-
+                // 保存前缀对应的原始数字串，用于后续退格拆分（如 什么 -> 743663）
+                val oldCached = cachedInputString
                 val remainingDigits = preedit
                     .substring(firstDigitIndex)
                     .filter { it in '2'..'9' }
@@ -262,6 +274,22 @@ class T9InputController(
                 if (remainingDigits.isEmpty()) {
                     return
                 }
+
+                // 计算前缀数字：原 cached 去掉剩余部分
+                committedPrefixDigits =
+                    if (oldCached.endsWith(remainingDigits)) {
+                        oldCached.substring(0, oldCached.length - remainingDigits.length)
+                    } else {
+                        // 回退：若无法对应则清空，避免错误回退
+                        ""
+                    }
+
+                Timber.d(
+                    "T9DBG onCompositionUpdated PREFIX: " +
+                        "prefix=[$prefix], " +
+                        "committedPrefix=[$committedPrefix], " +
+                        "committedPrefixDigits=[$committedPrefixDigits]",
+                )
 
                 cachedInputString = remainingDigits
 
@@ -479,6 +507,7 @@ class T9InputController(
         behaviorQueue.clear()
         cachedInputString = ""
         committedPrefix = ""
+        committedPrefixDigits = ""
         pendingCandidateCommit = null
         lastRimeInput = ""
         fireCandidatesChanged()
@@ -496,6 +525,7 @@ class T9InputController(
 
     fun debugState(): String = "cachedInput=[$cachedInputString], " +
         "committedPrefix=[$committedPrefix], " +
+        "committedPrefixDigits=[$committedPrefixDigits], " +
         "inputQueue=$inputQueue, " +
         "selectedQueue=$selectedQueue, " +
         "behaviorQueue=$behaviorQueue, " +

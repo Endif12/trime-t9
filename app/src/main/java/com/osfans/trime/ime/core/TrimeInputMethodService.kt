@@ -235,7 +235,8 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
             }
             is RimeMessage.InlinePreeditMessage -> {
                 if (t9InputController.hasT9State()) {
-                    updateComposingText("")
+                    currentInputConnection?.finishComposingText()
+                    composingText = ""
                 } else {
                     updateComposingText(it.data)
                 }
@@ -288,7 +289,8 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
 
                 t9InputController.onCompositionUpdated(preedit)
                 if (t9InputController.hasT9State()) {
-                    updateComposingText("")
+                    currentInputConnection?.finishComposingText()
+                    composingText = ""
                 } else {
                     updateComposingText(preedit)
                 }

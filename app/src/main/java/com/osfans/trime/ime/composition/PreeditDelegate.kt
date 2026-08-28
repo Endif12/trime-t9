@@ -81,7 +81,6 @@ class PreeditDelegate : InputBroadcastReceiver {
         val prefix = service.t9InputController.getCommittedPrefix()
         if (prefix.isEmpty()) return data
         val preedit = data.preedit.orEmpty()
-        if (preedit.startsWith(prefix)) return data
         if (preedit.isEmpty()) {
             return CompositionProto(
                 length = prefix.length,
@@ -92,13 +91,19 @@ class PreeditDelegate : InputBroadcastReceiver {
                 commitTextPreview = prefix,
             )
         }
+        if (preedit.startsWith(prefix)) {
+            return data.copy(
+                selStart = 0,
+                selEnd = data.length,
+            )
+        }
         val mergedPreedit = prefix + preedit
         val prefixLen = prefix.length
         return data.copy(
             length = mergedPreedit.length,
             cursorPos = data.cursorPos + prefixLen,
-            selStart = data.selStart + prefixLen,
-            selEnd = data.selEnd + prefixLen,
+            selStart = 0,
+            selEnd = mergedPreedit.length,
             preedit = mergedPreedit,
             commitTextPreview = data.commitTextPreview?.let { prefix + it } ?: mergedPreedit,
         )
