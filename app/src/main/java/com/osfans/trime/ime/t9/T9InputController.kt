@@ -126,7 +126,22 @@ class T9InputController(
             return false
         }
 
-        // 优先处理已提交汉字：汉字 -> 拼音 -> 数字（满足 什么9474 -> shen'me'9474 -> 7436639474）
+        // 已有拼音时，先将拼音还原为数字（满足 什么yi'74 -> 什么9474）
+        if (selectedQueue.isNotEmpty()) {
+            selectedQueue.removeLast()
+            if (selectedQueue.isEmpty()) {
+                behaviorQueue.clear()
+            } else {
+                if (behaviorQueue.isNotEmpty()) {
+                    behaviorQueue.removeLast()
+                }
+            }
+            updateRimeInput()
+            fireCandidatesChanged()
+            return true
+        }
+
+        // 已提交汉字：汉字 -> 拼音 -> 数字（满足 什么9474 -> shen'me'9474 -> 7436639474）
         if (committedPrefix.isNotEmpty()) {
             if (committedPrefixDigits.isNotEmpty()) {
                 val prefixDigits = committedPrefixDigits
@@ -170,23 +185,6 @@ class T9InputController(
             rime.lifecycleScope.launch {
                 rime.runOnReady { clearComposition() }
             }
-            return true
-        }
-
-        // 已有拼音选择时，优先将拼音还原为数字
-        if (selectedQueue.isNotEmpty()) {
-            selectedQueue.removeLast()
-            // 若移除后仍有前序拼音，保留；否则回到纯数字
-            if (selectedQueue.isEmpty()) {
-                behaviorQueue.clear()
-            } else {
-                // 移除对应的 behavior
-                if (behaviorQueue.isNotEmpty()) {
-                    behaviorQueue.removeLast()
-                }
-            }
-            updateRimeInput()
-            fireCandidatesChanged()
             return true
         }
 
@@ -240,7 +238,7 @@ class T9InputController(
             }
             if (mapped == digits) return pinyin
         }
-        return candidates.firstOrNull()
+        return null
     }
 
     private fun getPinyinTokensForDigits(
