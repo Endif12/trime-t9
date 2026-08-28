@@ -77,7 +77,7 @@ class T9InputController(
         if (cachedInputString.isEmpty()) {
             if (committedPrefix.isNotEmpty()) {
                 if (committedPrefixDigits.isNotEmpty()) {
-                    val pinyin = getPinyinForDigits(committedPrefixDigits)
+                    val tokens = getPinyinTokensForDigits(committedPrefixDigits, committedPrefix)
                     val newCached = committedPrefixDigits
                     committedPrefix = ""
                     committedPrefixDigits = ""
@@ -86,15 +86,22 @@ class T9InputController(
                     inputQueue.addAll(newCached.map { it.toString() })
                     selectedQueue.clear()
                     behaviorQueue.clear()
-                    if (pinyin != null) {
-                        selectedQueue.add(
-                            PinYinToken(
-                                pos = 0,
-                                raw = newCached,
-                                pinYin = pinyin,
-                            ),
-                        )
-                        behaviorQueue.add(Behavior.SELECT_PINYIN)
+                    if (tokens.isNotEmpty()) {
+                        for (t in tokens) {
+                            selectedQueue.add(t)
+                            behaviorQueue.add(Behavior.SELECT_PINYIN)
+                        }
+                    } else {
+                        getPinyinForDigits(newCached)?.let { pinyin ->
+                            selectedQueue.add(
+                                PinYinToken(
+                                    pos = 0,
+                                    raw = newCached,
+                                    pinYin = pinyin,
+                                ),
+                            )
+                            behaviorQueue.add(Behavior.SELECT_PINYIN)
+                        }
                     }
                     updateRimeInput()
                     fireCandidatesChanged()
@@ -119,13 +126,13 @@ class T9InputController(
             return false
         }
 
-        // 优先处理已提交汉字：汉字 -> 拼音 -> 数字（满足 什么9474 -> shenme9474 -> 7436639474）
+        // 优先处理已提交汉字：汉字 -> 拼音 -> 数字（满足 什么9474 -> shen'me'9474 -> 7436639474）
         if (committedPrefix.isNotEmpty()) {
             if (committedPrefixDigits.isNotEmpty()) {
                 val prefixDigits = committedPrefixDigits
                 val remaining = cachedInputString
                 val newCached = prefixDigits + remaining
-                val pinyin = getPinyinForDigits(prefixDigits)
+                val tokens = getPinyinTokensForDigits(prefixDigits, committedPrefix)
                 committedPrefix = ""
                 committedPrefixDigits = ""
                 cachedInputString = newCached
@@ -133,15 +140,22 @@ class T9InputController(
                 inputQueue.addAll(newCached.map { it.toString() })
                 selectedQueue.clear()
                 behaviorQueue.clear()
-                if (pinyin != null) {
-                    selectedQueue.add(
-                        PinYinToken(
-                            pos = 0,
-                            raw = prefixDigits,
-                            pinYin = pinyin,
-                        ),
-                    )
-                    behaviorQueue.add(Behavior.SELECT_PINYIN)
+                if (tokens.isNotEmpty()) {
+                    for (t in tokens) {
+                        selectedQueue.add(t)
+                        behaviorQueue.add(Behavior.SELECT_PINYIN)
+                    }
+                } else {
+                    getPinyinForDigits(prefixDigits)?.let { pinyin ->
+                        selectedQueue.add(
+                            PinYinToken(
+                                pos = 0,
+                                raw = prefixDigits,
+                                pinYin = pinyin,
+                            ),
+                        )
+                        behaviorQueue.add(Behavior.SELECT_PINYIN)
+                    }
                 }
                 updateRimeInput()
                 fireCandidatesChanged()
@@ -205,7 +219,6 @@ class T9InputController(
         if (digits.isEmpty()) return null
         val candidates = T9PinYin.possibleCombinations(digits)
         if (candidates.isEmpty()) return null
-        // 优先选长度与数字串等长且映射完全一致的拼音（如 743663 -> shenme）
         for (pinyin in candidates) {
             if (pinyin.length != digits.length) continue
             val mapped = buildString {
@@ -227,8 +240,53 @@ class T9InputController(
             }
             if (mapped == digits) return pinyin
         }
-        // 退化：取最长候选
         return candidates.firstOrNull()
+    }
+
+    private fun getPinyinTokensForDigits(
+        digits: String,
+        han: String,
+    ): List<PinYinToken> {
+        if (digits.isEmpty() || han.isEmpty()) return emptyList()
+        // 单字直接映射
+        if (han.length == 1) {
+            val pinyin = getPinyinForDigits(digits) ?: return emptyList()
+            return listOf(PinYinToken(pos = 0, raw = digits, pinYin = pinyin))
+        }
+        // 多字：按字数切分数字串，寻找可映射为合法拼音的切分
+        val hanCount = han.length
+
+        // 动态规划寻找覆盖全长的切分
+        fun dfs(
+            pos: Int,
+            hanIdx: Int,
+            acc: MutableList<PinYinToken>,
+        ): List<PinYinToken>? {
+            if (hanIdx == hanCount) {
+                return if (pos == digits.length) acc.toList() else null
+            }
+            if (pos >= digits.length) return null
+            // 尝试长度 2..6 的拼音段
+            for (len in 2..6) {
+                if (pos + len > digits.length) break
+                val subDigits = digits.substring(pos, pos + len)
+                val pinyin = getPinyinForDigits(subDigits) ?: continue
+                // 避免单字母 pinyin（如 a/i）除非必要
+                if (pinyin.length == 1 && hanCount > 1) continue
+                acc.add(PinYinToken(pos = pos, raw = subDigits, pinYin = pinyin))
+                val res = dfs(pos + len, hanIdx + 1, acc)
+                if (res != null) return res
+                acc.removeAt(acc.lastIndex)
+            }
+            return null
+        }
+        dfs(0, 0, mutableListOf())?.let { return it }
+        // 退化：整体作为一个拼音（若存在）
+        getPinyinForDigits(digits)?.let {
+            return listOf(PinYinToken(pos = 0, raw = digits, pinYin = it))
+        }
+        // 退化：按 4+2 等常见切分
+        return emptyList()
     }
 
     fun onCandidateClicked(text: String) {
