@@ -166,21 +166,26 @@ class CandidatesView(
             )
         }
         if (preedit.startsWith(prefix)) {
-            // 已含前缀，仅需将高亮扩展到全部，使 什么 也为彩色而非黑白固化
             return data.copy(
                 selStart = 0,
                 selEnd = data.length,
             )
         }
-        val mergedPreedit = prefix + preedit
+        // 分离汉字前缀后的拼音/数字部分，避免 什+么 4 74  дублировать 么
+        val firstNonHan = preedit.indexOfFirst {
+            Character.UnicodeScript.of(it.code) != Character.UnicodeScript.HAN
+        }
+        val digitPart = if (firstNonHan >= 0) preedit.substring(firstNonHan) else preedit
+        val mergedPreedit = prefix + digitPart
         val prefixLen = prefix.length
+        // digitPart 可能以空格开头，保留原样以维持 Rime 分词空格
         return data.copy(
             length = mergedPreedit.length,
-            cursorPos = data.cursorPos + prefixLen,
+            cursorPos = if (firstNonHan >= 0) data.cursorPos + prefixLen - firstNonHan else data.cursorPos + prefixLen,
             selStart = 0,
             selEnd = mergedPreedit.length,
             preedit = mergedPreedit,
-            commitTextPreview = data.commitTextPreview?.let { prefix + it } ?: mergedPreedit,
+            commitTextPreview = data.commitTextPreview?.let { prefix + digitPart } ?: mergedPreedit,
         )
     }
 

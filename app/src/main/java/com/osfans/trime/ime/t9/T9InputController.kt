@@ -251,51 +251,91 @@ class T9InputController(
             return
         }
 
-        val firstDigitIndex = preedit.indexOfFirst {
-            it in '2'..'9'
+        // 查找首个非汉字字符，分离已提交汉字前缀与后续拼音/数字
+        val firstNonHanIndex = preedit.indexOfFirst {
+            Character.UnicodeScript.of(it.code) != Character.UnicodeScript.HAN
         }
-
-        if (firstDigitIndex > 0) {
-            val prefix = preedit.substring(0, firstDigitIndex)
-
+        if (firstNonHanIndex > 0) {
+            val rawPrefix = preedit.substring(0, firstNonHanIndex)
+            val prefix = rawPrefix.trim()
             if (
+                prefix.isNotEmpty() &&
                 prefix.any {
                     Character.UnicodeScript.of(it.code) ==
                         Character.UnicodeScript.HAN
                 }
             ) {
-                // 避免重复的 composition 消息覆盖已保存的前缀数字（二次 ENTER）
+                // 避免重复消息
                 if (prefix == committedPrefix && committedPrefixDigits.isNotEmpty()) {
                     lastRimeInput = preedit
                     return
                 }
-                committedPrefix = prefix
-                // 保存前缀对应的原始数字串，用于后续退格拆分（如 什么 -> 743663）
                 val oldCached = cachedInputString
-                val remainingDigits = preedit
-                    .substring(firstDigitIndex)
-                    .filter { it in '2'..'9' }
+                val remainingPart = preedit.substring(firstNonHanIndex)
+                val remainingDigits = remainingPart.filter { it in '2'..'9' }
 
                 if (remainingDigits.isEmpty()) {
-                    // 无剩余数字时，整个 oldCached 即为前缀数字（如仅剩 什么）
-                    if (oldCached.isNotEmpty()) {
+                    if (oldCached.isNotEmpty() && committedPrefixDigits.isEmpty()) {
                         committedPrefixDigits = oldCached
+                    }
+                    // 即使无剩余数字也需记录前缀（用于 什么 单独显示）
+                    if (committedPrefix.isEmpty()) {
+                        committedPrefix = prefix
+                    } else if (prefix != committedPrefix && !prefix.startsWith(committedPrefix)) {
+                        // 追加新字，如 什 + 么 = 什么
+                        committedPrefix += prefix
+                    } else if (prefix.length > committedPrefix.length) {
+                        committedPrefix = prefix
                     }
                     return
                 }
 
-                // 计算前缀数字：原 cached 去掉剩余部分
+                // 计算本次新增前缀对应的数字段
                 val computedDigits =
                     if (oldCached.endsWith(remainingDigits)) {
                         oldCached.substring(0, oldCached.length - remainingDigits.length)
                     } else {
-                        ""
+                        // 尝试从 remainingPart 中提取数字段长度匹配
+                        remainingDigits
+                            .let { rd ->
+                                if (oldCached.length >= rd.length) {
+                                    oldCached.takeLast(rd.length).let { tail ->
+                                        if (tail == rd) {
+                                            oldCached.substring(0, oldCached.length - rd.length)
+                                        } else {
+                                            ""
+                                        }
+                                    }
+                                } else {
+                                    ""
+                                }
+                            }
                     }
-                // 仅在还没记录时保存，避免二次覆盖为空
-                if (committedPrefixDigits.isEmpty() && computedDigits.isNotEmpty()) {
+
+                if (committedPrefix.isEmpty()) {
+                    committedPrefix = prefix
                     committedPrefixDigits = computedDigits
-                } else if (computedDigits.isNotEmpty()) {
-                    committedPrefixDigits = computedDigits
+                } else {
+                    // 已有前缀，追加新字（什 + 么）
+                    if (prefix == committedPrefix) {
+                        // 重复不处理
+                    } else if (prefix.startsWith(committedPrefix)) {
+                        // 新前缀已包含旧，如 什 -> 什么
+                        val added = prefix.substring(committedPrefix.length)
+                        committedPrefix = prefix
+                        if (computedDigits.isNotEmpty() && computedDigits.length >= committedPrefixDigits.length) {
+                            committedPrefixDigits = computedDigits
+                        } else if (computedDigits.isNotEmpty()) {
+                            committedPrefixDigits += computedDigits
+                        }
+                    } else {
+                        // 追加，如 什 + 么
+                        committedPrefix += prefix
+                        if (computedDigits.isNotEmpty()) {
+                            // computedDigits 是本次新增汉字的数字（如 63 对应 么）
+                            committedPrefixDigits += computedDigits
+                        }
+                    }
                 }
 
                 Timber.d(

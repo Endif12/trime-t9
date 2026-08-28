@@ -97,15 +97,19 @@ class PreeditDelegate : InputBroadcastReceiver {
                 selEnd = data.length,
             )
         }
-        val mergedPreedit = prefix + preedit
+        val firstNonHan = preedit.indexOfFirst {
+            Character.UnicodeScript.of(it.code) != Character.UnicodeScript.HAN
+        }
+        val digitPart = if (firstNonHan >= 0) preedit.substring(firstNonHan) else preedit
+        val mergedPreedit = prefix + digitPart
         val prefixLen = prefix.length
         return data.copy(
             length = mergedPreedit.length,
-            cursorPos = data.cursorPos + prefixLen,
+            cursorPos = if (firstNonHan >= 0) data.cursorPos + prefixLen - firstNonHan else data.cursorPos + prefixLen,
             selStart = 0,
             selEnd = mergedPreedit.length,
             preedit = mergedPreedit,
-            commitTextPreview = data.commitTextPreview?.let { prefix + it } ?: mergedPreedit,
+            commitTextPreview = data.commitTextPreview?.let { prefix + digitPart } ?: mergedPreedit,
         )
     }
 }
