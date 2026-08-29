@@ -15,6 +15,8 @@ class T9InputController(
         val raw: String,
         val pinYin: String,
         val display: String = pinYin,
+        // 提交组 id：同一次候选提交还原出的 token 同组，退格时整组还原为数字
+        val group: Int = -1,
     )
 
     enum class Behavior {
@@ -28,6 +30,17 @@ class T9InputController(
     private val inputQueue = ArrayDeque<String>()
     private val selectedQueue = ArrayDeque<PinYinToken>()
     private val behaviorQueue = ArrayDeque<Behavior>()
+
+    // 已确认汉字的提交组记录（与 committedPrefix 一一对应）：
+    // 同一次候选提交的汉字同组，退格时整组还原为拼音
+    private val commitGroups = mutableListOf<Int>()
+    private var nextGroupId = 0
+
+    /** 新增 count 个已确认汉字，它们属于同一次提交（同一组） */
+    private fun appendCommitGroup(count: Int) {
+        repeat(count) { commitGroups.add(nextGroupId) }
+        nextGroupId++
+    }
 
     var onCandidatesChanged: ((List<PinYinToken>) -> Unit)? = null
 
@@ -197,7 +210,8 @@ class T9InputController(
 
         when {
             cursorToken != null -> return deleteTokenDigits(cursorToken, cursorTokenOffset)
-            quoteToken != null -> return deleteTokenDigits(quoteToken, quoteToken.raw.length - 1)
+            // 光标左侧是 token 后的分隔符 '：该 token（含同组）还原为数字，不删数字
+            quoteToken != null -> return unselectTokenGroup(quoteToken)
         }
 
         // 光标左侧是数字（或分段空格等分隔符）：按数字逐个删除
@@ -303,9 +317,10 @@ class T9InputController(
     }
 
     /**
-     * 删除汉字前缀中 hanIdx 处的汉字：
-     * 汉字 -> 拼音 -> 数字进入数字流首位并删除一位；
-     * 其后的汉字随之还原为拼音 token 进入数字流
+     * 退格时光标左侧是汉字：
+     * 该汉字所属提交组（同一次候选提交的整组汉字）还原为拼音 token，不删数字；
+     * 其后的汉字随之还原为拼音 token 进入数字流；
+     * 之后的退格再按 "拼音 -> 数字 -> 逐位删除" 继续
      */
     private fun deleteHanBefore(hanIdx: Int): Boolean {
         if (hanIdx < 0 || hanIdx >= committedPrefix.length) return false
@@ -315,6 +330,7 @@ class T9InputController(
         if (tokens.size != committedPrefix.length) {
             // 无法定位该汉字的数字段时退化为直接删除该汉字
             committedPrefix = committedPrefix.removeRange(hanIdx, hanIdx + 1)
+            if (hanIdx < commitGroups.size) commitGroups.removeAt(hanIdx)
             if (committedPrefixDigits.isNotEmpty()) {
                 val avg = committedPrefixDigits.length / (committedPrefix.length + 1).coerceAtLeast(1)
                 val start = hanIdx * avg
@@ -323,6 +339,7 @@ class T9InputController(
             }
             if (committedPrefix.isEmpty()) {
                 committedPrefixDigits = ""
+                commitGroups.clear()
                 clearForEmpty()
             } else {
                 fireCandidatesChanged()
@@ -331,32 +348,55 @@ class T9InputController(
             return true
         }
 
-        val seg = tokens[hanIdx]
+        // 该汉字所属提交组的范围 [lo, hi]（组内汉字连续）
+        val group = commitGroups.getOrElse(hanIdx) { -1 }
+        var lo = hanIdx
+        while (lo > 0 && commitGroups.getOrElse(lo - 1) { -2 } == group) lo--
+        var hi = hanIdx
+        while (hi < commitGroups.size - 1 && commitGroups.getOrElse(hi + 1) { -2 } == group) hi++
 
-        // 该汉字还原为数字并删除一位，剩余数字留在数字流首位
-        val keepDigits = seg.raw.dropLast(1)
-
-        // 光标之后的汉字还原为拼音 token，其数字紧跟在剩余数字之后
-        val suffixTokens = mutableListOf<PinYinToken>()
-        val suffixDigits = StringBuilder()
-        var suffixPos = keepDigits.length
-        for (j in hanIdx + 1 until tokens.size) {
+        // 组内汉字 -> 拼音 token，其数字进入数字流首位（不删数字）
+        val revertTokens = mutableListOf<PinYinToken>()
+        val revertDigits = StringBuilder()
+        var pos = 0
+        var cursorAfterReverted = 0
+        for (j in lo..hi) {
             val t = tokens[j]
-            suffixTokens.add(PinYinToken(pos = suffixPos, raw = t.raw, pinYin = t.pinYin))
-            suffixPos += t.raw.length
-            suffixDigits.append(t.raw)
+            revertTokens.add(PinYinToken(pos = pos, raw = t.raw, pinYin = t.pinYin, group = group))
+            revertDigits.append(t.raw)
+            pos += t.raw.length
+            if (j == hanIdx) cursorAfterReverted = pos
         }
 
-        committedPrefix = committedPrefix.substring(0, hanIdx)
-        committedPrefixDigits = if (seg.pos > 0) committedPrefixDigits.substring(0, seg.pos) else ""
+        // 光标之后的汉字随之还原为拼音 token（保持各自分组）
+        val suffixTokens = mutableListOf<PinYinToken>()
+        val suffixDigits = StringBuilder()
+        for (j in hi + 1 until tokens.size) {
+            val t = tokens[j]
+            suffixTokens.add(
+                PinYinToken(
+                    pos = pos,
+                    raw = t.raw,
+                    pinYin = t.pinYin,
+                    group = commitGroups.getOrElse(j) { -1 },
+                ),
+            )
+            suffixDigits.append(t.raw)
+            pos += t.raw.length
+        }
+        val shift = pos
 
-        cachedInputString = keepDigits + suffixDigits + cachedInputString
+        committedPrefix = committedPrefix.substring(0, lo)
+        while (commitGroups.size > lo) commitGroups.removeAt(commitGroups.lastIndex)
+        committedPrefixDigits = if (tokens[lo].pos > 0) committedPrefixDigits.substring(0, tokens[lo].pos) else ""
+
+        cachedInputString = revertDigits.toString() + suffixDigits.toString() + cachedInputString
         inputQueue.clear()
         inputQueue.addAll(cachedInputString.map { it.toString() })
 
         val newSelected = ArrayDeque<PinYinToken>()
+        for (t in revertTokens) newSelected.add(t)
         for (t in suffixTokens) newSelected.add(t)
-        val shift = keepDigits.length + suffixDigits.length
         for (t in selectedQueue) newSelected.add(t.copy(pos = t.pos + shift))
         selectedQueue.clear()
         selectedQueue.addAll(newSelected)
@@ -367,7 +407,40 @@ class T9InputController(
             return true
         }
 
-        t9CursorPos = keepDigits.length
+        // 光标停在光标左侧那个汉字还原出的拼音之后
+        t9CursorPos = cursorAfterReverted
+        val displayCursor = committedPrefix.length + t9CursorPos + countApostrophesBefore(t9CursorPos)
+        updateRimeInputWithCursor(displayCursor)
+        fireCandidatesChanged()
+        return true
+    }
+
+    /**
+     * 退格时光标左侧是 token 的分隔符 '：
+     * 该 token（及其同组 token）还原为数字，不删数字，光标停在该组数字之后
+     */
+    private fun unselectTokenGroup(tok: PinYinToken): Boolean {
+        val targets =
+            if (tok.group >= 0) {
+                selectedQueue.filter { it.group == tok.group }
+            } else {
+                listOf(tok)
+            }
+        if (targets.isEmpty()) return false
+
+        val newCursor = targets.maxOf { it.pos + it.raw.length }
+        selectedQueue.removeAll(targets.toSet())
+        if (behaviorQueue.isNotEmpty()) behaviorQueue.removeLast()
+
+        inputQueue.clear()
+        inputQueue.addAll(cachedInputString.map { it.toString() })
+
+        if (cachedInputString.isEmpty() && committedPrefix.isEmpty()) {
+            clearForEmpty()
+            return true
+        }
+
+        t9CursorPos = newCursor.coerceIn(0, cachedInputString.length)
         val displayCursor = committedPrefix.length + t9CursorPos + countApostrophesBefore(t9CursorPos)
         updateRimeInputWithCursor(displayCursor)
         fireCandidatesChanged()
@@ -379,6 +452,7 @@ class T9InputController(
         selectedQueue.clear()
         behaviorQueue.clear()
         committedPrefixDigits = ""
+        commitGroups.clear()
         lastRimeInput = ""
         t9CursorPos = 0
         fireCandidatesChanged()
@@ -507,6 +581,7 @@ class T9InputController(
         cachedInputString = ""
         committedPrefix = ""
         committedPrefixDigits = ""
+        commitGroups.clear()
         lastRimeInput = ""
         t9CursorPos = 0
 
@@ -699,10 +774,13 @@ class T9InputController(
                     // 即使无剩余数字也需记录前缀（用于 什么 单独显示）
                     if (committedPrefix.isEmpty()) {
                         committedPrefix = prefix
+                        appendCommitGroup(prefix.length)
                     } else if (prefix != committedPrefix && !prefix.startsWith(committedPrefix)) {
                         // 追加新字，如 什 + 么 = 什么
                         committedPrefix += prefix
+                        appendCommitGroup(prefix.length)
                     } else if (prefix.length > committedPrefix.length) {
+                        appendCommitGroup(prefix.length - committedPrefix.length)
                         committedPrefix = prefix
                     }
                     t9CursorPos = 0
@@ -734,14 +812,15 @@ class T9InputController(
 
                 if (committedPrefix.isEmpty()) {
                     committedPrefix = prefix
+                    appendCommitGroup(prefix.length)
                     committedPrefixDigits = computedDigits
                 } else {
                     // 已有前缀，追加新字（什 + 么）
                     if (prefix == committedPrefix) {
                         // 重复不处理
                     } else if (prefix.startsWith(committedPrefix)) {
-                        // 新前缀已包含旧，如 什 -> 什么
-                        val added = prefix.substring(committedPrefix.length)
+                        // 新前缀已包含旧，如 什 -> 什么（新增的字属同一次提交）
+                        appendCommitGroup(prefix.length - committedPrefix.length)
                         committedPrefix = prefix
                         if (computedDigits.isNotEmpty() && computedDigits.length >= committedPrefixDigits.length) {
                             committedPrefixDigits = computedDigits
@@ -751,6 +830,7 @@ class T9InputController(
                     } else {
                         // 追加，如 什 + 么
                         committedPrefix += prefix
+                        appendCommitGroup(prefix.length)
                         if (computedDigits.isNotEmpty()) {
                             // computedDigits 是本次新增汉字的数字（如 63 对应 么）
                             committedPrefixDigits += computedDigits
@@ -886,6 +966,7 @@ class T9InputController(
                 pos = pos,
                 raw = raw,
                 pinYin = pinYin,
+                group = nextGroupId++,
             ),
         )
 
@@ -1038,6 +1119,7 @@ class T9InputController(
         cachedInputString = ""
         committedPrefix = ""
         committedPrefixDigits = ""
+        commitGroups.clear()
         pendingCandidateCommit = null
         lastRimeInput = ""
         t9CursorPos = 0
@@ -1057,6 +1139,7 @@ class T9InputController(
     fun debugState(): String = "cachedInput=[$cachedInputString], " +
         "committedPrefix=[$committedPrefix], " +
         "committedPrefixDigits=[$committedPrefixDigits], " +
+        "commitGroups=$commitGroups, " +
         "inputQueue=$inputQueue, " +
         "selectedQueue=$selectedQueue, " +
         "behaviorQueue=$behaviorQueue, " +
