@@ -558,6 +558,32 @@ class T9InputController(
         return cnt
     }
 
+    /**
+     * 计算光标前的数字位个数：可见数字 + 光标之前已选拼音 token 所代表的隐藏数字。
+     * token 的拼音字母与 raw 数字一一对应，光标落在拼音内时按字母偏移折算
+     */
+    private fun countDigitPosBeforeCursor(
+        text: String,
+        cursorPos: Int,
+    ): Int {
+        var digitPos = 0
+        var segmentStart = 0
+        for (tok in selectedQueue) {
+            val start = text.indexOf(tok.pinYin, segmentStart)
+            if (start < 0 || start >= cursorPos) break
+            val quotePos = start + tok.pinYin.length
+            digitPos += countDigitsInRange(text, segmentStart, start)
+            if (quotePos >= cursorPos) {
+                // 光标在该 token 拼音内部：字母与数字一一对应
+                return digitPos + (cursorPos - start).coerceAtMost(tok.raw.length)
+            }
+            digitPos += tok.raw.length
+            segmentStart = quotePos + 1
+        }
+        digitPos += countDigitsInRange(text, segmentStart, cursorPos)
+        return digitPos
+    }
+
     private fun syncT9CursorFromRime(preedit: String, cursorPos: Int) {
         if (preedit.isEmpty() || cursorPos < 0) return
         // 若有已选拼音或汉字前缀，T9 已自行管理光标，避免被 Rime 的带空格 preedit 误覆盖
@@ -569,7 +595,11 @@ class T9InputController(
                     Character.UnicodeScript.of(it.code) != Character.UnicodeScript.HAN
                 }
                 if (firstNonHan >= 0 && cursorPos > firstNonHan) {
-                    val digitPartCnt = countDigitsBeforeCursor(preedit.substring(firstNonHan), cursorPos - firstNonHan)
+                    val digitPartCnt =
+                        countDigitPosBeforeCursor(
+                            preedit.substring(firstNonHan),
+                            cursorPos - firstNonHan,
+                        )
                     val newPos = digitPartCnt.coerceIn(0, cachedInputString.length)
                     if (newPos != t9CursorPos) {
                         t9CursorPos = newPos
