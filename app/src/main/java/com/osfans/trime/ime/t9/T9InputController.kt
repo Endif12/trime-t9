@@ -269,6 +269,10 @@ class T9InputController(
         }
 
         t9CursorPos = deleteIndex.coerceIn(0, cachedInputString.length)
+        if (committedPrefix.isEmpty() && cachedInputString.isNotEmpty() && t9CursorPos == 0) {
+            // 光标到最前面没有意义，自动跳到最末尾
+            t9CursorPos = cachedInputString.length
+        }
         val displayCursor = committedPrefix.length + t9CursorPos + countApostrophesBefore(t9CursorPos)
         updateRimeInputWithCursor(displayCursor)
         fireCandidatesChanged()
@@ -310,6 +314,10 @@ class T9InputController(
         }
 
         t9CursorPos = deleteIndex.coerceIn(0, cachedInputString.length)
+        if (committedPrefix.isEmpty() && cachedInputString.isNotEmpty() && t9CursorPos == 0) {
+            // 光标到最前面没有意义，自动跳到最末尾
+            t9CursorPos = cachedInputString.length
+        }
         val displayCursor = committedPrefix.length + t9CursorPos + countApostrophesBefore(t9CursorPos)
         updateRimeInputWithCursor(displayCursor)
         fireCandidatesChanged()
@@ -690,6 +698,17 @@ class T9InputController(
             }
             return
         }
+        // 光标到最前面（无汉字前缀时）没有意义，自动跳到最末尾
+        if (committedPrefix.isEmpty() && cachedInputString.isNotEmpty() &&
+            countDigitsBeforeCursor(preedit, cursorPos) == 0
+        ) {
+            if (t9CursorPos != cachedInputString.length) {
+                t9CursorPos = cachedInputString.length
+                updateRimeInputWithCursor(committedPrefix.length + t9CursorPos + countApostrophesBefore(t9CursorPos))
+                fireCandidatesChanged()
+            }
+            return
+        }
         val digitCnt = countDigitsBeforeCursor(preedit, cursorPos)
         if (digitCnt in 0..cachedInputString.length && digitCnt != t9CursorPos) {
             // 忽略 setRawInput 后、moveCursorPos 前的中间态（光标在末尾但 T9 预期在中间）
@@ -699,6 +718,51 @@ class T9InputController(
             t9CursorPos = digitCnt
             fireCandidatesChanged()
         }
+    }
+
+    /**
+     * 可停留的光标位置（数字位）：各分段（汉字前缀、已选拼音、Rime 空格分段）的边界。
+     * 无汉字前缀时最前面（数字位 0）没有意义，不作为停留点
+     */
+    private fun cursorBoundaries(): List<Int> {
+        val result = mutableSetOf<Int>()
+        if (committedPrefix.isNotEmpty()) result.add(0)
+        for (tok in selectedQueue) {
+            val end = tok.pos + tok.raw.length
+            if (end in 1..cachedInputString.length) result.add(end)
+        }
+        // Rime preedit 里的空格是分段边界
+        val preedit = lastRimeInput
+        var i = 0
+        while (i < preedit.length) {
+            if (preedit[i] == ' ') {
+                result.add(countDigitPosBeforeCursor(preedit, i).coerceIn(0, cachedInputString.length))
+                while (i < preedit.length && preedit[i] == ' ') i++
+            } else {
+                i++
+            }
+        }
+        if (cachedInputString.isNotEmpty()) result.add(cachedInputString.length)
+        if (committedPrefix.isEmpty()) result.remove(0)
+        return result.sorted()
+    }
+
+    /** 光标左移一格（一个分段），已在最左边时循环跳到最末尾 */
+    fun onCursorMoveLeft() {
+        val bounds = cursorBoundaries()
+        if (bounds.isEmpty()) return
+        t9CursorPos = bounds.lastOrNull { it < t9CursorPos } ?: bounds.last()
+        updateRimeInputWithCursor(committedPrefix.length + t9CursorPos + countApostrophesBefore(t9CursorPos))
+        fireCandidatesChanged()
+    }
+
+    /** 光标右移一格（一个分段），已在最末尾时循环跳回第一个分段边界 */
+    fun onCursorMoveRight() {
+        val bounds = cursorBoundaries()
+        if (bounds.isEmpty()) return
+        t9CursorPos = bounds.firstOrNull { it > t9CursorPos } ?: bounds.first()
+        updateRimeInputWithCursor(committedPrefix.length + t9CursorPos + countApostrophesBefore(t9CursorPos))
+        fireCandidatesChanged()
     }
 
     private fun onCompositionUpdatedInternal(

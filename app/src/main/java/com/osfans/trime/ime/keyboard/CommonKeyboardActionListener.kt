@@ -395,6 +395,20 @@ class CommonKeyboardActionListener {
                                 return
                             }
                         }
+
+                        KeyEvent.KEYCODE_DPAD_LEFT -> {
+                            if (service.t9InputController.hasT9State()) {
+                                service.t9InputController.onCursorMoveLeft()
+                                return
+                            }
+                        }
+
+                        KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                            if (service.t9InputController.hasT9State()) {
+                                service.t9InputController.onCursorMoveRight()
+                                return
+                            }
+                        }
                     }
                 }
 
