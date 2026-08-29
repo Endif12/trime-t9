@@ -98,8 +98,11 @@ class T9InputController(
     private fun countApostrophesBefore(digitPos: Int): Int {
         var c = 0
         for (tok in selectedQueue) {
-            if (tok.pos + tok.raw.length <= digitPos) c += 1
-            else if (tok.pos < digitPos) c += 1 // 光标在拼音内部也算已插入的 '
+            if (tok.pos + tok.raw.length <= digitPos) {
+                c += 1
+            } else if (tok.pos < digitPos) {
+                c += 1 // 光标在拼音内部也算已插入的 '
+            }
             // 已插入 token 的 ' 紧跟拼音后，若光标在拼音内也会在 Rime 侧处于拼音内，但为简化按已过 token 计
         }
         return c
@@ -424,8 +427,11 @@ class T9InputController(
             // 调整 selectedQueue
             val newSelected2 = ArrayDeque<PinYinToken>()
             for (tok in selectedQueue) {
-                if (tok.pos > deletePos) newSelected2.add(tok.copy(pos = tok.pos - 1))
-                else if (tok.pos + tok.raw.length <= deletePos) newSelected2.add(tok)
+                if (tok.pos > deletePos) {
+                    newSelected2.add(tok.copy(pos = tok.pos - 1))
+                } else if (tok.pos + tok.raw.length <= deletePos) {
+                    newSelected2.add(tok)
+                }
             }
             selectedQueue.clear()
             selectedQueue.addAll(newSelected2)
@@ -858,8 +864,11 @@ class T9InputController(
         if (selectedQueue.isNotEmpty()) {
             val newSelected = ArrayDeque<PinYinToken>()
             for (tok in selectedQueue) {
-                if (tok.pos >= insertPos) newSelected.add(tok.copy(pos = tok.pos + 1))
-                else newSelected.add(tok)
+                if (tok.pos >= insertPos) {
+                    newSelected.add(tok.copy(pos = tok.pos + 1))
+                } else {
+                    newSelected.add(tok)
+                }
             }
             selectedQueue.clear()
             selectedQueue.addAll(newSelected)
