@@ -311,20 +311,17 @@ class T9InputController(
                         }
                     }
                 }
-                // 纯数字删除
+                // 纯数字删除：保持光标
+                val newDisplayCursor = displayCursor2 - 1
                 cachedInputString = cachedInputString.removeRange(digitIdx, digitIdx + 1)
-                // 同步 inputQueue（按 cached 重建）
                 inputQueue.clear()
                 inputQueue.addAll(cachedInputString.map { it.toString() })
-                // 调整 selectedQueue 的 pos（若删除发生在拼音前）
                 val newSelected = ArrayDeque<PinYinToken>()
                 for (tok in selectedQueue) {
                     if (tok.pos > digitIdx) {
                         newSelected.add(tok.copy(pos = tok.pos - 1))
                     } else if (tok.pos + tok.raw.length <= digitIdx) {
                         newSelected.add(tok)
-                    } else {
-                        // token 被切分，丢弃
                     }
                 }
                 selectedQueue.clear()
@@ -338,7 +335,7 @@ class T9InputController(
                     rime.lifecycleScope.launch { rime.runOnReady { clearComposition() } }
                     return true
                 }
-                updateRimeInput()
+                updateRimeInputWithCursor(newDisplayCursor)
                 fireCandidatesChanged()
                 return true
             }
@@ -363,6 +360,22 @@ class T9InputController(
         }
 
         return false
+    }
+
+    private fun updateRimeInputWithCursor(displayCursor: Int) {
+        val input = buildRimeInput()
+        lastRimeInput = input
+        val prefixLen = committedPrefix.length
+        var rimeCursor = (displayCursor - prefixLen).coerceAtLeast(0)
+        rimeCursor = rimeCursor.coerceIn(0, input.length)
+        rime.lifecycleScope.launch {
+            rime.runOnReady {
+                setRawInput(input)
+            }
+            rime.runOnReady {
+                moveCursorPos(rimeCursor)
+            }
+        }
     }
 
     private fun getPinyinForDigits(digits: String): String? {
