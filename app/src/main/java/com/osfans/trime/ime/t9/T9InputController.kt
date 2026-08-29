@@ -341,10 +341,37 @@ class T9InputController(
         behaviorQueue.clear()
     }
 
+    private var lastRimeCursorPos: Int = 0
+    private var lastRimeSelStart: Int = 0
+    private var lastRimeSelEnd: Int = 0
+
     fun onCompositionUpdated(preedit: String) {
+        onCompositionUpdatedInternal(preedit, -1, -1, -1)
+    }
+
+    fun onCompositionUpdated(composition: com.osfans.trime.core.CompositionProto) {
+        onCompositionUpdatedInternal(
+            composition.preedit.orEmpty(),
+            composition.cursorPos,
+            composition.selStart,
+            composition.selEnd,
+        )
+    }
+
+    private fun onCompositionUpdatedInternal(
+        preedit: String,
+        cursorPos: Int,
+        selStart: Int,
+        selEnd: Int,
+    ) {
+        if (cursorPos >= 0) {
+            lastRimeCursorPos = cursorPos
+            lastRimeSelStart = selStart
+            lastRimeSelEnd = selEnd
+        }
         Timber.d(
             "T9DBG onCompositionUpdated ENTER: " +
-                "preedit=[$preedit], " +
+                "preedit=[$preedit], cursor=$cursorPos sel=$selStart-$selEnd, " +
                 debugState(),
         )
 
@@ -528,6 +555,18 @@ class T9InputController(
     fun hasT9State(): Boolean = cachedInputString.isNotEmpty() ||
         committedPrefix.isNotEmpty() ||
         selectedQueue.isNotEmpty()
+
+    fun getDisplayText(rimePreedit: String): String {
+        val prefix = committedPrefix
+        if (prefix.isEmpty() && rimePreedit.isEmpty() && cachedInputString.isEmpty() && selectedQueue.isEmpty()) return ""
+        if (rimePreedit.isEmpty()) return prefix
+        if (rimePreedit.startsWith(prefix)) return rimePreedit
+        val firstNonHan = rimePreedit.indexOfFirst {
+            Character.UnicodeScript.of(it.code) != Character.UnicodeScript.HAN
+        }
+        val digitPart = if (firstNonHan >= 0) rimePreedit.substring(firstNonHan) else rimePreedit
+        return prefix + digitPart
+    }
 
     fun isSegmentKeyCode(keyEventCode: Int): Boolean = keyEventCode == KeyEvent.KEYCODE_APOSTROPHE
 

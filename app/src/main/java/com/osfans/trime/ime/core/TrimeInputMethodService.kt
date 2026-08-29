@@ -224,11 +224,14 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
                             )
                         } else {
                             Timber.d(
-                                "T9DBG RIME_COMMIT_IGNORED_T9: text=[$text], " +
+                                "T9DBG RIME_COMMIT_T9: text=[$text], " +
                                     "controller=${t9InputController.debugState()}",
                             )
+                            commitText(text)
+                            t9InputController.clear()
+                            composingText = ""
                         }
-                    } else if (text.isNotEmpty()) {
+                    } else {
                         commitText(text)
                     }
                 }
@@ -287,7 +290,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
                     return
                 }
 
-                t9InputController.onCompositionUpdated(preedit)
+                t9InputController.onCompositionUpdated(it.data)
                 if (t9InputController.hasT9State()) {
                     currentInputConnection?.finishComposingText()
                     composingText = ""
@@ -299,7 +302,26 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
                 it.data.let msg@{
                     if (it.isVirtual) {
                         when (it.value.value) {
-                            RimeKeyMapping.RimeKey_Return -> handleReturnKey()
+                            RimeKeyMapping.RimeKey_Return -> {
+                                if (t9InputController.hasT9State()) {
+                                    val rimePreedit = rime.run { compositionCached.preedit.orEmpty() }
+                                    // 优先使用 T9 的合并显示，其次 Rime 原始 preedit
+                                    val display = t9InputController.getDisplayText(rimePreedit).ifEmpty { rimePreedit }
+                                    val toCommit = display.ifEmpty { rimePreedit }.ifEmpty { composingText }
+                                    if (toCommit.isNotEmpty()) {
+                                        commitText(toCommit)
+                                        t9InputController.clear()
+                                        composingText = ""
+                                        rime.lifecycleScope.launch {
+                                            rime.runOnReady { clearComposition() }
+                                        }
+                                    } else {
+                                        handleReturnKey()
+                                    }
+                                } else {
+                                    handleReturnKey()
+                                }
+                            }
                             else -> {
                                 val keyCode = it.value.keyCode
                                 if (keyCode != KeyEvent.KEYCODE_UNKNOWN) {

@@ -428,8 +428,6 @@ class InputBarDelegate : InputBroadcastReceiver {
     }
 
     override fun onCompositionUpdate(data: CompositionProto) {
-        service.t9InputController.onCompositionUpdated(
-            data.preedit.orEmpty(),
-        )
+        service.t9InputController.onCompositionUpdated(data)
     }
 }
