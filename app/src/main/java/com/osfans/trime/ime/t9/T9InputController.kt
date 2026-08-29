@@ -73,10 +73,46 @@ class T9InputController(
         fireCandidatesChanged()
     }
 
+    private fun getDisplayTextAndCursor(): Pair<String, Int> {
+        val rimePreedit = lastRimeInput
+        val displayText = getDisplayText(rimePreedit)
+        // displayCursor = prefixLen + rimeCursor (adjusted for digitPart)
+        val prefixLen = committedPrefix.length
+        val rimeCursor = lastRimeCursorPos
+        // 估算 displayCursor：若 rimePreedit 含汉字前缀则需映射
+        val displayCursor = if (rimePreedit.isEmpty()) {
+            prefixLen
+        } else {
+            val firstNonHan = rimePreedit.indexOfFirst {
+                Character.UnicodeScript.of(it.code) != Character.UnicodeScript.HAN
+            }
+            if (firstNonHan >= 0 && rimePreedit.startsWith(committedPrefix) && committedPrefix.isNotEmpty()) {
+                // 已在合并分支中高亮全选，display 即 rimePreedit 本身
+                rimeCursor
+            } else if (firstNonHan >= 0) {
+                prefixLen + (rimeCursor - firstNonHan).coerceAtLeast(0)
+            } else {
+                prefixLen + rimeCursor
+            }
+        }.coerceIn(0, displayText.length)
+        return displayText to displayCursor
+    }
+
     fun onBackspace(): Boolean {
+        // 光标感知：若 displayCursor 不在末尾，按光标左侧字符类型处理
+        val (displayText, displayCursor) = getDisplayTextAndCursor()
+        if (displayCursor == 0) return false
+
+        // 仅剩汉字且 cached 为空时，按光标在汉字内的位置处理
         if (cachedInputString.isEmpty()) {
             if (committedPrefix.isNotEmpty()) {
-                if (committedPrefixDigits.isNotEmpty()) {
+                // display 仅为汉字前缀，如 "什么" 光标在 "什^么" 或 "什么^"
+                val hanBefore = displayCursor - 1
+                if (hanBefore < 0 || hanBefore >= committedPrefix.length) return false
+                // 若光标左侧是汉字，按 “汉字->拼音->数字” 逐级回退该字
+                // 为简化：若 prefix 长度>1 且光标不在末尾，仍整体回退为拼音（用户主要场景为末尾）
+                // 此处实现末尾回退为拼音，与之前逻辑一致；光标在中间时逐字删汉字
+                if (displayCursor == committedPrefix.length && committedPrefixDigits.isNotEmpty()) {
                     val tokens = getPinyinTokensForDigits(committedPrefixDigits, committedPrefix)
                     val newCached = committedPrefixDigits
                     committedPrefix = ""
@@ -107,7 +143,43 @@ class T9InputController(
                     fireCandidatesChanged()
                     return true
                 }
-                committedPrefix = committedPrefix.dropLast(1)
+                // 光标在汉字中间：删除该汉字及对应数字段
+                // 简化：按汉字逐字删
+                val beforeHanIdx = hanBefore
+                // 找到该汉字对应的数字段长度（通过切分）
+                val tokens = getPinyinTokensForDigits(committedPrefixDigits, committedPrefix)
+                if (tokens.size == committedPrefix.length) {
+                    val tokenToRemove = tokens.getOrNull(beforeHanIdx)
+                    if (tokenToRemove != null) {
+                        val newDigits = committedPrefixDigits.removeRange(tokenToRemove.pos, tokenToRemove.pos + tokenToRemove.raw.length)
+                        val newHan = committedPrefix.removeRange(beforeHanIdx, beforeHanIdx + 1)
+                        committedPrefix = newHan
+                        committedPrefixDigits = newDigits
+                        if (newHan.isEmpty()) {
+                            // 全部删完
+                            inputQueue.clear()
+                            selectedQueue.clear()
+                            behaviorQueue.clear()
+                            lastRimeInput = ""
+                            fireCandidatesChanged()
+                            rime.lifecycleScope.launch { rime.runOnReady { clearComposition() } }
+                        } else {
+                            fireCandidatesChanged()
+                            rime.lifecycleScope.launch { rime.runOnReady { clearComposition() } }
+                        }
+                        return true
+                    }
+                }
+                committedPrefix = committedPrefix.removeRange(hanBefore, hanBefore + 1)
+                // 粗略同步 digits：按比例删
+                if (committedPrefixDigits.isNotEmpty()) {
+                    val avgLen = committedPrefixDigits.length / (committedPrefix.length + 1)
+                    val start = hanBefore * avgLen
+                    val end = (start + avgLen).coerceAtMost(committedPrefixDigits.length)
+                    if (start < end) {
+                        committedPrefixDigits = committedPrefixDigits.removeRange(start, end)
+                    }
+                }
                 fireCandidatesChanged()
                 rime.lifecycleScope.launch {
                     rime.runOnReady {
@@ -126,83 +198,163 @@ class T9InputController(
             return false
         }
 
-        // 已有拼音时，先将拼音还原为数字（满足 什么yi'74 -> 什么9474）
-        if (selectedQueue.isNotEmpty()) {
-            selectedQueue.removeLast()
-            if (selectedQueue.isEmpty()) {
-                behaviorQueue.clear()
-            } else {
-                if (behaviorQueue.isNotEmpty()) {
-                    behaviorQueue.removeLast()
+        // 光标感知的通用删除
+        val (displayText2, displayCursor2) = getDisplayTextAndCursor()
+        if (displayCursor2 <= 0 || displayCursor2 > displayText2.length) return false
+        val charBefore = displayText2[displayCursor2 - 1]
+        val isHanBefore = Character.UnicodeScript.of(charBefore.code) == Character.UnicodeScript.HAN
+        val isPinyinBefore = charBefore in 'a'..'z' || charBefore in 'A'..'Z'
+        val isDigitBefore = charBefore in '2'..'9'
+        val isApostropheBefore = charBefore == '\''
+
+        // 1. 汉字左侧：汉字 -> 拼音 -> 数字
+        if (isHanBefore) {
+            // 光标在汉字区内
+            val hanIdx = displayCursor2 - 1 // 0-based in display, prefix part is 0..prefixLen-1
+            if (hanIdx < committedPrefix.length) {
+                // 删除该汉字
+                if (committedPrefixDigits.isNotEmpty()) {
+                    val tokens = getPinyinTokensForDigits(committedPrefixDigits, committedPrefix)
+                    if (tokens.size == committedPrefix.length && hanIdx < tokens.size) {
+                        val tok = tokens[hanIdx]
+                        // 将该汉字还原为拼音/数字：先变为拼音
+                        val newTokens = tokens.toMutableList()
+                        // 移除该汉字的 token，替换为拼音 token 保持可再删为数字
+                        // 简化：整体回退为拼音态
+                        val allTokens = getPinyinTokensForDigits(committedPrefixDigits, committedPrefix)
+                        if (allTokens.isNotEmpty()) {
+                            // 将整个前缀转为拼音态
+                            val remaining = cachedInputString
+                            val newCached = committedPrefixDigits + remaining
+                            committedPrefix = ""
+                            committedPrefixDigits = ""
+                            cachedInputString = newCached
+                            inputQueue.clear()
+                            inputQueue.addAll(newCached.map { it.toString() })
+                            selectedQueue.clear()
+                            behaviorQueue.clear()
+                            for (t in allTokens) {
+                                // 调整 pos 加上 prefix 已转的偏移
+                                selectedQueue.add(t)
+                                behaviorQueue.add(Behavior.SELECT_PINYIN)
+                            }
+                            updateRimeInput()
+                            fireCandidatesChanged()
+                            return true
+                        }
+                    }
                 }
+                committedPrefix = committedPrefix.removeRange(hanIdx, hanIdx + 1)
+                if (committedPrefixDigits.isNotEmpty()) {
+                    // 按字数比例删对应数字段
+                    val handler = committedPrefix.length + 1
+                    val avg = committedPrefixDigits.length / handler.coerceAtLeast(1)
+                    val start = hanIdx * avg
+                    val end = (start + avg).coerceAtMost(committedPrefixDigits.length)
+                    if (start < end) committedPrefixDigits = committedPrefixDigits.removeRange(start, end)
+                    if (committedPrefix.isEmpty()) committedPrefixDigits = ""
+                }
+                fireCandidatesChanged()
+                rime.lifecycleScope.launch { rime.runOnReady { clearComposition() } }
+                return true
             }
-            updateRimeInput()
-            fireCandidatesChanged()
-            return true
         }
 
-        // 已提交汉字：汉字 -> 拼音 -> 数字（满足 什么9474 -> shen'me'9474 -> 7436639474）
-        if (committedPrefix.isNotEmpty()) {
-            if (committedPrefixDigits.isNotEmpty()) {
-                val prefixDigits = committedPrefixDigits
-                val remaining = cachedInputString
-                val newCached = prefixDigits + remaining
-                val tokens = getPinyinTokensForDigits(prefixDigits, committedPrefix)
-                committedPrefix = ""
-                committedPrefixDigits = ""
-                cachedInputString = newCached
+        // 2. 拼音左侧：拼音 -> 数字
+        if (isPinyinBefore || isApostropheBefore) {
+            // 找到光标前的拼音 token
+            // 将 displayCursor 映射到 Rime 侧
+            val prefixLen = committedPrefix.length
+            val rimeCursorInDisplay = displayCursor2 - prefixLen
+            // 在 selectedQueue 中找包含 rimeCursor-1 的 token
+            var target: PinYinToken? = null
+            // 构建 Rime 侧的显示（不含前缀）以定位
+            val rimeDisplay = getDisplayText(lastRimeInput).removePrefix(committedPrefix)
+            // 简化：直接移除最后一个拼音（光标在拼音区时通常为末尾拼音）
+            if (selectedQueue.isNotEmpty()) {
+                // 若光标在拼音区，移除包含光标前字符的 token
+                // 近似：移除最后选中的拼音
+                selectedQueue.removeLast()
+                if (behaviorQueue.isNotEmpty()) behaviorQueue.removeLast()
+                if (selectedQueue.isEmpty()) behaviorQueue.clear()
+                updateRimeInput()
+                fireCandidatesChanged()
+                return true
+            }
+        }
+
+        // 3. 数字左侧：逐位删数字
+        if (isDigitBefore) {
+            // 将 displayCursor 映射到 cached 数字索引
+            val prefixLen = committedPrefix.length
+            // 统计 display 中前缀后的非汉字字符中，数字字符数到光标前
+            val rimePart = if (displayText2.length > prefixLen) displayText2.substring(prefixLen) else ""
+            var digitCountBefore = 0
+            for (i in 0 until (displayCursor2 - prefixLen).coerceAtLeast(0)) {
+                if (i < rimePart.length && rimePart[i] in '2'..'9') digitCountBefore++
+            }
+            // digitCountBefore 为光标前数字个数，删除第 digitCountBefore-1 个数字
+            val digitIdx = digitCountBefore - 1
+            if (digitIdx >= 0 && digitIdx < cachedInputString.length) {
+                // 考虑 selected 拼音占用的 raw 段，需映射到 cached 索引
+                // 简化：若存在选中拼音，优先按拼音 token 边界删
+                if (selectedQueue.isNotEmpty()) {
+                    // 找到包含 digitIdx 的 token 边界
+                    for (tok in selectedQueue) {
+                        if (digitIdx >= tok.pos && digitIdx < tok.pos + tok.raw.length) {
+                            // 光标在拼音内，按拼音->数字处理（已在上面处理）
+                            selectedQueue.remove(tok)
+                            if (behaviorQueue.isNotEmpty()) behaviorQueue.removeLast()
+                            updateRimeInput()
+                            fireCandidatesChanged()
+                            return true
+                        }
+                    }
+                }
+                // 纯数字删除
+                cachedInputString = cachedInputString.removeRange(digitIdx, digitIdx + 1)
+                // 同步 inputQueue（按 cached 重建）
                 inputQueue.clear()
-                inputQueue.addAll(newCached.map { it.toString() })
+                inputQueue.addAll(cachedInputString.map { it.toString() })
+                // 调整 selectedQueue 的 pos（若删除发生在拼音前）
+                val newSelected = ArrayDeque<PinYinToken>()
+                for (tok in selectedQueue) {
+                    if (tok.pos > digitIdx) {
+                        newSelected.add(tok.copy(pos = tok.pos - 1))
+                    } else if (tok.pos + tok.raw.length <= digitIdx) {
+                        newSelected.add(tok)
+                    } else {
+                        // token 被切分，丢弃
+                    }
+                }
                 selectedQueue.clear()
-                behaviorQueue.clear()
-                if (tokens.isNotEmpty()) {
-                    for (t in tokens) {
-                        selectedQueue.add(t)
-                        behaviorQueue.add(Behavior.SELECT_PINYIN)
-                    }
-                } else {
-                    getPinyinForDigits(prefixDigits)?.let { pinyin ->
-                        selectedQueue.add(
-                            PinYinToken(
-                                pos = 0,
-                                raw = prefixDigits,
-                                pinYin = pinyin,
-                            ),
-                        )
-                        behaviorQueue.add(Behavior.SELECT_PINYIN)
-                    }
+                selectedQueue.addAll(newSelected)
+                if (cachedInputString.isEmpty()) {
+                    inputQueue.clear()
+                    selectedQueue.clear()
+                    behaviorQueue.clear()
+                    lastRimeInput = ""
+                    fireCandidatesChanged()
+                    rime.lifecycleScope.launch { rime.runOnReady { clearComposition() } }
+                    return true
                 }
                 updateRimeInput()
                 fireCandidatesChanged()
                 return true
             }
-            // 无数字记录时逐字删汉字
-            committedPrefix = committedPrefix.dropLast(1)
-            if (committedPrefix.isEmpty()) {
-                committedPrefixDigits = ""
-            }
-            fireCandidatesChanged()
-            rime.lifecycleScope.launch {
-                rime.runOnReady { clearComposition() }
-            }
-            return true
         }
 
-        // 仅剩数字时，从末尾逐位删除
+        // 兜底：按末位删
         if (cachedInputString.isNotEmpty()) {
             cachedInputString = cachedInputString.dropLast(1)
-            if (inputQueue.isNotEmpty()) {
-                inputQueue.removeLast()
-            }
+            if (inputQueue.isNotEmpty()) inputQueue.removeLast()
             if (cachedInputString.isEmpty()) {
                 inputQueue.clear()
                 selectedQueue.clear()
                 behaviorQueue.clear()
                 lastRimeInput = ""
                 fireCandidatesChanged()
-                rime.lifecycleScope.launch {
-                    rime.runOnReady { clearComposition() }
-                }
+                rime.lifecycleScope.launch { rime.runOnReady { clearComposition() } }
                 return true
             }
             updateRimeInput()

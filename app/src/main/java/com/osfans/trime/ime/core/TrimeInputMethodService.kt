@@ -223,11 +223,13 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
                                     "controller=${t9InputController.debugState()}",
                             )
                         } else {
+                            val prefix = t9InputController.getCommittedPrefix()
+                            val toCommit = prefix + text
                             Timber.d(
-                                "T9DBG RIME_COMMIT_T9: text=[$text], " +
+                                "T9DBG RIME_COMMIT_T9: text=[$text], prefix=[$prefix], toCommit=[$toCommit], " +
                                     "controller=${t9InputController.debugState()}",
                             )
-                            commitText(text)
+                            commitText(toCommit)
                             t9InputController.clear()
                             composingText = ""
                         }
