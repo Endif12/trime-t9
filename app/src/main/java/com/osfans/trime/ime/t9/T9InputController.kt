@@ -720,31 +720,48 @@ class T9InputController(
         }
     }
 
+    // 完整分段边界缓存（数字位）：Rime 只在光标位于末尾时给出完整分段，
+    // 光标移到中间后 preedit 会重新切分并丢失光标之后的边界，故仅在末尾或数字串变化时刷新
+    private var cachedDigitBoundaries: List<Int> = emptyList()
+    private var cachedBoundariesInput: String? = null
+
     /**
      * 可停留的光标位置（数字位）：各分段（汉字前缀、已选拼音、Rime 空格分段）的边界。
      * 无汉字前缀时最前面（数字位 0）没有意义，不作为停留点
      */
     private fun cursorBoundaries(): List<Int> {
+        if (t9CursorPos >= cachedInputString.length || cachedInputString != cachedBoundariesInput) {
+            refreshBoundaryCache()
+        }
         val result = mutableSetOf<Int>()
         if (committedPrefix.isNotEmpty()) result.add(0)
+        for (b in cachedDigitBoundaries) {
+            if (b in 1..cachedInputString.length) result.add(b)
+        }
         for (tok in selectedQueue) {
             val end = tok.pos + tok.raw.length
             if (end in 1..cachedInputString.length) result.add(end)
         }
-        // Rime preedit 里的空格是分段边界
+        if (cachedInputString.isNotEmpty()) result.add(cachedInputString.length)
+        if (committedPrefix.isEmpty()) result.remove(0)
+        return result.sorted()
+    }
+
+    /** 从 Rime preedit 的空格分段提取边界（仅光标在末尾时 preedit 才是完整分段） */
+    private fun refreshBoundaryCache() {
+        cachedBoundariesInput = cachedInputString
+        val bounds = mutableSetOf<Int>()
         val preedit = lastRimeInput
         var i = 0
         while (i < preedit.length) {
             if (preedit[i] == ' ') {
-                result.add(countDigitPosBeforeCursor(preedit, i).coerceIn(0, cachedInputString.length))
+                bounds.add(countDigitPosBeforeCursor(preedit, i).coerceIn(0, cachedInputString.length))
                 while (i < preedit.length && preedit[i] == ' ') i++
             } else {
                 i++
             }
         }
-        if (cachedInputString.isNotEmpty()) result.add(cachedInputString.length)
-        if (committedPrefix.isEmpty()) result.remove(0)
-        return result.sorted()
+        cachedDigitBoundaries = bounds.toList()
     }
 
     /** 光标左移一格（一个分段），已在最左边时循环跳到最末尾 */
