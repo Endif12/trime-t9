@@ -153,42 +153,56 @@ class T9InputController(
         val (displayText, displayCursor) = getDisplayTextAndCursor()
         if (displayCursor <= 0 || displayText.isEmpty()) return false
 
-        val prefixLen = committedPrefix.length
+        val charBefore = displayText[displayCursor - 1]
 
-        // 光标位于汉字前缀区：左侧是汉字
-        // 汉字 -> 拼音 -> 数字，再按数字逻辑删除一位
-        if (displayCursor <= prefixLen) {
+        // 光标左侧是汉字：汉字 -> 拼音 -> 数字，再按数字逻辑删除一位
+        if (Character.UnicodeScript.of(charBefore.code) == Character.UnicodeScript.HAN) {
             return deleteHanBefore(displayCursor - 1)
         }
 
-        // 光标位于拼音/数字区：先定位光标左侧的内容
-        var displayStart = prefixLen
+        // Rime 的 preedit 会在分段之间插入空格/' 等分隔符，
+        // 光标位置不能直接按显示字符数折算数字位：
+        // 需按 token 拼音的实际渲染位置定位，再统计光标前真正的数字个数
+        val prefixLen = committedPrefix.length
         var digitPos = 0
+        var segmentStart = prefixLen
+        var cursorToken: PinYinToken? = null
+        var cursorTokenOffset = 0
+        var quoteToken: PinYinToken? = null
 
         for (tok in selectedQueue) {
-            val lettersStart = displayStart
-            val lettersEnd = lettersStart + tok.raw.length
-
+            val start = displayText.indexOf(tok.pinYin, segmentStart)
+            if (start < 0 || start >= displayCursor) break
+            val quotePos = start + tok.pinYin.length
+            // 该 token 拼音之前的可见数字
+            digitPos += countDigitsInRange(displayText, segmentStart, start)
             when {
-                // 光标左侧是 token 后的分隔符 '：拼音 -> 数字，删除该段最后一位
-                displayCursor == lettersEnd + 1 ->
-                    return deleteTokenDigits(tok, tok.raw.length - 1)
-                // 光标在 token 整体（含分隔符）之后，继续向右定位
-                displayCursor > lettersEnd -> {
-                    displayStart = lettersEnd + 1
-                    digitPos = tok.pos + tok.raw.length
-                }
                 // 光标左侧是 token 拼音中的字母：拼音 -> 数字，删除对应的一位
-                displayCursor > lettersStart ->
-                    return deleteTokenDigits(tok, displayCursor - lettersStart - 1)
-                // 光标在 token 起始处，左侧内容属于 token 之前的数字
-                else -> break
+                displayCursor <= quotePos -> {
+                    cursorToken = tok
+                    cursorTokenOffset = displayCursor - 1 - start
+                }
+                // 光标左侧是 token 后的分隔符 '：拼音 -> 数字，删除该段最后一位
+                displayCursor == quotePos + 1 && charBefore == SEGMENT_KEY_CHAR -> {
+                    quoteToken = tok
+                }
             }
+            segmentStart = quotePos + 1
+            if (cursorToken != null || quoteToken != null) break
+            // token 整体位于光标之前：其对应数字全部计入
+            digitPos += tok.raw.length
+        }
+        // 最后一段可见数字（最后一个完整越过的 token 之后到光标）
+        digitPos += countDigitsInRange(displayText, segmentStart, displayCursor)
+
+        when {
+            cursorToken != null -> return deleteTokenDigits(cursorToken, cursorTokenOffset)
+            quoteToken != null -> return deleteTokenDigits(quoteToken, quoteToken.raw.length - 1)
         }
 
-        // 光标左侧是数字：按数字逐个删除
+        // 光标左侧是数字（或分段空格等分隔符）：按数字逐个删除
         if (cachedInputString.isEmpty()) return false
-        var deleteIndex = digitPos + (displayCursor - displayStart) - 1
+        var deleteIndex = digitPos - 1
         if (deleteIndex < 0) return false
         if (deleteIndex >= cachedInputString.length) {
             deleteIndex = cachedInputString.length - 1
@@ -202,6 +216,20 @@ class T9InputController(
         }
 
         return deleteDigitAt(deleteIndex)
+    }
+
+    /** 统计 [start, end) 范围内的可见数字个数（分段空格、分隔符 ' 不计） */
+    private fun countDigitsInRange(
+        text: String,
+        start: Int,
+        end: Int,
+    ): Int {
+        var count = 0
+        val hi = end.coerceAtMost(text.length)
+        for (i in start until hi) {
+            if (text[i] in '2'..'9') count++
+        }
+        return count
     }
 
     /** 删除数字流中指定位置的一位数字，光标停在被删位置 */
