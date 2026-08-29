@@ -36,6 +36,7 @@ class T9InputController(
     private var committedPrefixDigits = ""
     private var pendingCandidateCommit: String? = null
     private var lastRimeInput = ""
+    private var t9CursorPos: Int = 0
     private var messageJob: Job? = null
 
     companion object {
@@ -66,11 +67,57 @@ class T9InputController(
     }
 
     fun onDigitKey(digit: String) {
-        inputQueue.add(digit)
-        cachedInputString += digit
+        // 严格按光标分隔：插入到 t9CursorPos 而非总是末尾
+        val insertPos = t9CursorPos.coerceIn(0, cachedInputString.length)
+        cachedInputString = buildString {
+            append(cachedInputString.substring(0, insertPos))
+            append(digit)
+            append(cachedInputString.substring(insertPos))
+        }
+        inputQueue.clear()
+        inputQueue.addAll(cachedInputString.map { it.toString() })
+        if (selectedQueue.isNotEmpty()) {
+            val newSelected = ArrayDeque<PinYinToken>()
+            for (tok in selectedQueue) {
+                if (tok.pos >= insertPos) {
+                    newSelected.add(tok.copy(pos = tok.pos + 1))
+                } else {
+                    newSelected.add(tok)
+                }
+            }
+            selectedQueue.clear()
+            selectedQueue.addAll(newSelected)
+        }
         behaviorQueue.add(Behavior.NORMAL)
-
+        t9CursorPos = insertPos + 1
+        val displayCursor = committedPrefix.length + t9CursorPos + countApostrophesBefore(t9CursorPos)
+        updateRimeInputWithCursor(displayCursor)
         fireCandidatesChanged()
+    }
+
+    private fun countApostrophesBefore(digitPos: Int): Int {
+        var c = 0
+        for (tok in selectedQueue) {
+            if (tok.pos + tok.raw.length <= digitPos) c += 1
+            else if (tok.pos < digitPos) c += 1 // 光标在拼音内部也算已插入的 '
+            // 已插入 token 的 ' 紧跟拼音后，若光标在拼音内也会在 Rime 侧处于拼音内，但为简化按已过 token 计
+        }
+        return c
+    }
+
+    private fun getRimeCursorForDigitPos(digitPos: Int): Int {
+        var extra = 0
+        for (tok in selectedQueue) {
+            if (tok.pos + tok.raw.length <= digitPos) {
+                extra += 1 // 每个已选拼音后的 '
+            } else if (tok.pos < digitPos) {
+                // 光标在拼音 token 内部
+                // pinYin.length == raw.length，故光标在拼音内的偏移等价于 digit 偏移
+                extra += 0
+                break
+            }
+        }
+        return digitPos + extra
     }
 
     private fun getDisplayTextAndCursor(): Pair<String, Int> {
@@ -139,7 +186,9 @@ class T9InputController(
                             behaviorQueue.add(Behavior.SELECT_PINYIN)
                         }
                     }
-                    updateRimeInput()
+                    t9CursorPos = newCached.length
+                    val displayCursorNew = t9CursorPos + countApostrophesBefore(t9CursorPos)
+                    updateRimeInputWithCursor(displayCursorNew)
                     fireCandidatesChanged()
                     return true
                 }
@@ -238,7 +287,9 @@ class T9InputController(
                                 selectedQueue.add(t)
                                 behaviorQueue.add(Behavior.SELECT_PINYIN)
                             }
-                            updateRimeInput()
+                            t9CursorPos = newCached.length
+                            val displayCursor = t9CursorPos + countApostrophesBefore(t9CursorPos)
+                            updateRimeInputWithCursor(displayCursor)
                             fireCandidatesChanged()
                             return true
                         }
@@ -274,10 +325,13 @@ class T9InputController(
             if (selectedQueue.isNotEmpty()) {
                 // 若光标在拼音区，移除包含光标前字符的 token
                 // 近似：移除最后选中的拼音
-                selectedQueue.removeLast()
+                val removed = selectedQueue.removeLast()
                 if (behaviorQueue.isNotEmpty()) behaviorQueue.removeLast()
                 if (selectedQueue.isEmpty()) behaviorQueue.clear()
-                updateRimeInput()
+                // 光标回退到被删拼音的起始位置
+                t9CursorPos = removed.pos.coerceIn(0, cachedInputString.length)
+                val displayCursor = committedPrefix.length + t9CursorPos + countApostrophesBefore(t9CursorPos)
+                updateRimeInputWithCursor(displayCursor)
                 fireCandidatesChanged()
                 return true
             }
@@ -305,14 +359,15 @@ class T9InputController(
                             // 光标在拼音内，按拼音->数字处理（已在上面处理）
                             selectedQueue.remove(tok)
                             if (behaviorQueue.isNotEmpty()) behaviorQueue.removeLast()
-                            updateRimeInput()
+                            t9CursorPos = tok.pos.coerceIn(0, cachedInputString.length)
+                            val displayCursor = committedPrefix.length + t9CursorPos + countApostrophesBefore(t9CursorPos)
+                            updateRimeInputWithCursor(displayCursor)
                             fireCandidatesChanged()
                             return true
                         }
                     }
                 }
-                // 纯数字删除：保持光标
-                val newDisplayCursor = displayCursor2 - 1
+                // 纯数字删除：保持光标，严格按光标分隔
                 cachedInputString = cachedInputString.removeRange(digitIdx, digitIdx + 1)
                 inputQueue.clear()
                 inputQueue.addAll(cachedInputString.map { it.toString() })
@@ -326,15 +381,19 @@ class T9InputController(
                 }
                 selectedQueue.clear()
                 selectedQueue.addAll(newSelected)
+                // 更新光标：删后停在被删位置
+                t9CursorPos = digitIdx.coerceIn(0, cachedInputString.length)
                 if (cachedInputString.isEmpty()) {
                     inputQueue.clear()
                     selectedQueue.clear()
                     behaviorQueue.clear()
                     lastRimeInput = ""
+                    t9CursorPos = 0
                     fireCandidatesChanged()
                     rime.lifecycleScope.launch { rime.runOnReady { clearComposition() } }
                     return true
                 }
+                val newDisplayCursor = committedPrefix.length + t9CursorPos + countApostrophesBefore(t9CursorPos)
                 updateRimeInputWithCursor(newDisplayCursor)
                 fireCandidatesChanged()
                 return true
@@ -343,18 +402,35 @@ class T9InputController(
 
         // 兜底：按末位删
         if (cachedInputString.isNotEmpty()) {
-            cachedInputString = cachedInputString.dropLast(1)
-            if (inputQueue.isNotEmpty()) inputQueue.removeLast()
+            // 兜底也需维护光标：若 t9CursorPos 在末尾则同步
+            val deletePos = (t9CursorPos - 1).coerceIn(0, cachedInputString.length - 1)
+            cachedInputString = cachedInputString.removeRange(deletePos, deletePos + 1)
+            if (inputQueue.isNotEmpty()) {
+                // 重建 inputQueue 以保持与 cached 一致
+                inputQueue.clear()
+                inputQueue.addAll(cachedInputString.map { it.toString() })
+            }
+            t9CursorPos = deletePos.coerceIn(0, cachedInputString.length)
             if (cachedInputString.isEmpty()) {
                 inputQueue.clear()
                 selectedQueue.clear()
                 behaviorQueue.clear()
                 lastRimeInput = ""
+                t9CursorPos = 0
                 fireCandidatesChanged()
                 rime.lifecycleScope.launch { rime.runOnReady { clearComposition() } }
                 return true
             }
-            updateRimeInput()
+            // 调整 selectedQueue
+            val newSelected2 = ArrayDeque<PinYinToken>()
+            for (tok in selectedQueue) {
+                if (tok.pos > deletePos) newSelected2.add(tok.copy(pos = tok.pos - 1))
+                else if (tok.pos + tok.raw.length <= deletePos) newSelected2.add(tok)
+            }
+            selectedQueue.clear()
+            selectedQueue.addAll(newSelected2)
+            val displayCursor = committedPrefix.length + t9CursorPos + countApostrophesBefore(t9CursorPos)
+            updateRimeInputWithCursor(displayCursor)
             fireCandidatesChanged()
             return true
         }
@@ -485,6 +561,7 @@ class T9InputController(
         committedPrefix = ""
         committedPrefixDigits = ""
         lastRimeInput = ""
+        t9CursorPos = 0
 
         fireCandidatesChanged()
 
@@ -523,6 +600,55 @@ class T9InputController(
         )
     }
 
+    private fun countDigitsBeforeCursor(preedit: String, cursorPos: Int): Int {
+        if (preedit.isEmpty() || cursorPos <= 0) return 0
+        val limit = cursorPos.coerceAtMost(preedit.length)
+        var cnt = 0
+        for (i in 0 until limit) {
+            val c = preedit[i]
+            if (c in '2'..'9') cnt++
+        }
+        return cnt
+    }
+
+    private fun syncT9CursorFromRime(preedit: String, cursorPos: Int) {
+        if (preedit.isEmpty() || cursorPos < 0) return
+        // 若有已选拼音或汉字前缀，T9 已自行管理光标，避免被 Rime 的带空格 preedit 误覆盖
+        // 仅在纯数字态下严格按光标左侧的数字个数同步
+        if (selectedQueue.isNotEmpty() || committedPrefix.isNotEmpty()) {
+            // 对有前缀的情况，尝试按 digitPart 计数
+            if (committedPrefix.isNotEmpty()) {
+                val firstNonHan = preedit.indexOfFirst {
+                    Character.UnicodeScript.of(it.code) != Character.UnicodeScript.HAN
+                }
+                if (firstNonHan >= 0 && cursorPos > firstNonHan) {
+                    val digitPartCnt = countDigitsBeforeCursor(preedit.substring(firstNonHan), cursorPos - firstNonHan)
+                    val newPos = digitPartCnt.coerceIn(0, cachedInputString.length)
+                    if (newPos != t9CursorPos) {
+                        t9CursorPos = newPos
+                        fireCandidatesChanged()
+                    }
+                } else if (firstNonHan >= 0 && cursorPos <= firstNonHan) {
+                    // 光标在汉字区内，拼音应为空
+                    if (t9CursorPos != 0) {
+                        t9CursorPos = 0
+                        fireCandidatesChanged()
+                    }
+                }
+            }
+            return
+        }
+        val digitCnt = countDigitsBeforeCursor(preedit, cursorPos)
+        if (digitCnt in 0..cachedInputString.length && digitCnt != t9CursorPos) {
+            // 忽略 setRawInput 后、moveCursorPos 前的中间态（光标在末尾但 T9 预期在中间）
+            if (digitCnt == cachedInputString.length && t9CursorPos < cachedInputString.length - 1) {
+                return
+            }
+            t9CursorPos = digitCnt
+            fireCandidatesChanged()
+        }
+    }
+
     private fun onCompositionUpdatedInternal(
         preedit: String,
         cursorPos: Int,
@@ -533,6 +659,7 @@ class T9InputController(
             lastRimeCursorPos = cursorPos
             lastRimeSelStart = selStart
             lastRimeSelEnd = selEnd
+            syncT9CursorFromRime(preedit, cursorPos)
         }
         Timber.d(
             "T9DBG onCompositionUpdated ENTER: " +
@@ -601,6 +728,8 @@ class T9InputController(
                     } else if (prefix.length > committedPrefix.length) {
                         committedPrefix = prefix
                     }
+                    t9CursorPos = 0
+                    lastRimeInput = preedit
                     return
                 }
 
@@ -668,6 +797,14 @@ class T9InputController(
                 inputQueue.addAll(
                     remainingDigits.map { it.toString() },
                 )
+                // 光标同步：按 Rime 光标在 remainingPart 中的位置
+                if (cursorPos >= 0) {
+                    val afterHan = preedit.substring(firstNonHanIndex)
+                    val digitPosInRemaining = countDigitsBeforeCursor(afterHan, cursorPos - firstNonHanIndex)
+                    t9CursorPos = digitPosInRemaining.coerceIn(0, remainingDigits.length)
+                } else {
+                    t9CursorPos = remainingDigits.length
+                }
 
                 lastRimeInput = preedit
 
@@ -696,10 +833,6 @@ class T9InputController(
             return true
         }
 
-        if (inputQueue.last() == SEGMENT_KEY_CHAR.toString()) {
-            return true
-        }
-
         var selectedSize = 0
         selectedQueue.forEach {
             selectedSize += it.raw.length
@@ -709,9 +842,32 @@ class T9InputController(
             return true
         }
 
-        inputQueue.add(SEGMENT_KEY_CHAR.toString())
-        cachedInputString += SEGMENT_KEY_CHAR.toString()
+        val insertPos = t9CursorPos.coerceIn(0, cachedInputString.length)
+        if (insertPos > 0 && cachedInputString.getOrNull(insertPos - 1) == SEGMENT_KEY_CHAR) return true
+        if (insertPos < cachedInputString.length && cachedInputString.getOrNull(insertPos) == SEGMENT_KEY_CHAR) return true
+        // 若末尾已是分隔符也禁止
+        if (cachedInputString.isNotEmpty() && cachedInputString.last() == SEGMENT_KEY_CHAR && insertPos == cachedInputString.length) return true
+
+        cachedInputString = buildString {
+            append(cachedInputString.substring(0, insertPos))
+            append(SEGMENT_KEY_CHAR)
+            append(cachedInputString.substring(insertPos))
+        }
+        inputQueue.clear()
+        inputQueue.addAll(cachedInputString.map { it.toString() })
+        if (selectedQueue.isNotEmpty()) {
+            val newSelected = ArrayDeque<PinYinToken>()
+            for (tok in selectedQueue) {
+                if (tok.pos >= insertPos) newSelected.add(tok.copy(pos = tok.pos + 1))
+                else newSelected.add(tok)
+            }
+            selectedQueue.clear()
+            selectedQueue.addAll(newSelected)
+        }
         behaviorQueue.add(Behavior.SEGMENT)
+        t9CursorPos = insertPos + 1
+        val displayCursor = committedPrefix.length + t9CursorPos + countApostrophesBefore(t9CursorPos)
+        updateRimeInputWithCursor(displayCursor)
         fireCandidatesChanged()
 
         return false
@@ -758,7 +914,13 @@ class T9InputController(
             "T9DBG onSelectPinyin AFTER QUEUE: " +
                 debugState(),
         )
-        updateRimeInput()
+        // 保持光标：若光标在已选段后则保持，否则移到选段末尾
+        val tokenEnd = pos + raw.length
+        if (t9CursorPos < tokenEnd) {
+            t9CursorPos = tokenEnd
+        }
+        val displayCursor = committedPrefix.length + t9CursorPos + countApostrophesBefore(t9CursorPos)
+        updateRimeInputWithCursor(displayCursor)
         fireCandidatesChanged()
     }
 
@@ -772,8 +934,16 @@ class T9InputController(
         if (position < 0) {
             return emptyList()
         }
-
-        val sequence = cachedInputString.substring(position)
+        // 严格按光标分隔：只取 position 到光标之间的数字
+        val cursorLimit = if (t9CursorPos in (position + 1)..cachedInputString.length) {
+            t9CursorPos
+        } else if (t9CursorPos <= position) {
+            return emptyList()
+        } else {
+            cachedInputString.length
+        }
+        if (cursorLimit <= position) return emptyList()
+        val sequence = cachedInputString.substring(position, cursorLimit)
 
         return T9PinYin.possibleCombinations(sequence).map { pinYin ->
             var raw = sequence.substring(
@@ -890,6 +1060,7 @@ class T9InputController(
         committedPrefixDigits = ""
         pendingCandidateCommit = null
         lastRimeInput = ""
+        t9CursorPos = 0
         fireCandidatesChanged()
     }
 
@@ -909,6 +1080,7 @@ class T9InputController(
         "inputQueue=$inputQueue, " +
         "selectedQueue=$selectedQueue, " +
         "behaviorQueue=$behaviorQueue, " +
+        "t9CursorPos=$t9CursorPos, " +
         "lastRimeInput=[$lastRimeInput]"
 
     private fun fireCandidatesChanged() {
