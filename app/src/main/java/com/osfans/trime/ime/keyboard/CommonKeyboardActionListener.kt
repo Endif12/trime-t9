@@ -375,6 +375,7 @@ class CommonKeyboardActionListener {
                                 "T9 digit=$digit candidates=${service.t9InputController.computeCandidates().size}",
                                 Toast.LENGTH_SHORT,
                             ).show()
+                            return
                         }
 
                         KeyEvent.KEYCODE_DEL -> {
