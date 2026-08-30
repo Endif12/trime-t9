@@ -266,7 +266,8 @@ class InputBarDelegate : InputBroadcastReceiver {
     }
 
     override fun onCandidateListUpdate(data: Candidates.Bulk) {
-        val t9HasCandidates = service.t9InputController.computeCandidates().isNotEmpty()
+        // 仅九宫格方案需要合并 T9 拼音候选，其它方案跳过计算
+        val t9HasCandidates = isT9Schema && service.t9InputController.computeCandidates().isNotEmpty()
         val isEmpty = data.candidates.isEmpty() && !t9HasCandidates
         barStateMachine.push(
             QuickBarStateMachine.TransitionEvent.CandidatesUpdated,

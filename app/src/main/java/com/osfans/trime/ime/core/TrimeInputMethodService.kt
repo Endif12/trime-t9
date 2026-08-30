@@ -1,4 +1,4 @@
-/*
+﻿/*
  * SPDX-FileCopyrightText: 2015 - 2025 Rime community
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
@@ -207,10 +207,12 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
     }
 
     private fun handleRimeMessage(it: RimeMessage<*>) {
-        Timber.d(
-            "T9DBG RIME_MESSAGE: $it | " +
-                "controller=${t9InputController.debugState()}",
-        )
+        if (T9InputController.DEBUG_LOG) {
+            Timber.d(
+                "T9DBG RIME_MESSAGE: $it | " +
+                    "controller=${t9InputController.debugState()}",
+            )
+        }
         when (it) {
             is RimeMessage.CommitTextMessage -> {
                 val text = it.data.text.orEmpty()
@@ -218,18 +220,22 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
                 if (text.isNotEmpty()) {
                     if (t9InputController.hasT9State()) {
                         if (t9InputController.hasPendingCandidateCommit()) {
-                            Timber.d(
-                                "T9DBG RIME_COMMIT_IGNORED_PENDING: text=[$text], " +
-                                    "controller=${t9InputController.debugState()}",
-                            )
+                            if (T9InputController.DEBUG_LOG) {
+                                Timber.d(
+                                    "T9DBG RIME_COMMIT_IGNORED_PENDING: text=[$text], " +
+                                        "controller=${t9InputController.debugState()}",
+                                )
+                            }
                         } else {
                             // 由 T9 组装上屏文本：剔除 committedPrefix 中已由 Rime
                             // 自行转换并包含在提交文本里的部分（否则会重复上屏）
                             val toCommit = t9InputController.buildCommitText(text)
-                            Timber.d(
-                                "T9DBG RIME_COMMIT_T9: text=[$text], toCommit=[$toCommit], " +
-                                    "controller=${t9InputController.debugState()}",
-                            )
+                            if (T9InputController.DEBUG_LOG) {
+                                Timber.d(
+                                    "T9DBG RIME_COMMIT_T9: text=[$text], toCommit=[$toCommit], " +
+                                        "controller=${t9InputController.debugState()}",
+                                )
+                            }
                             commitText(toCommit)
                             t9InputController.clear()
                             composingText = ""
@@ -250,11 +256,13 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
             is RimeMessage.CompositionMessage -> {
                 val preedit = it.data.preedit.orEmpty()
 
-                Timber.d(
-                    "T9DBG RIME_COMPOSITION: " +
-                        "preedit=[$preedit], " +
-                        "controller=${t9InputController.debugState()}",
-                )
+                if (T9InputController.DEBUG_LOG) {
+                    Timber.d(
+                        "T9DBG RIME_COMPOSITION: " +
+                            "preedit=[$preedit], " +
+                            "controller=${t9InputController.debugState()}",
+                    )
+                }
 
                 if (
                     preedit.isEmpty() &&
@@ -266,12 +274,14 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
                     val prefix = t9InputController.getCommittedPrefix()
                     val finalText = prefix + candidate
 
-                    Timber.d(
-                        "T9DBG RIME_COMPOSITION FINAL: " +
-                            "prefix=[$prefix], " +
-                            "candidate=[$candidate], " +
-                            "finalText=[$finalText]",
-                    )
+                    if (T9InputController.DEBUG_LOG) {
+                        Timber.d(
+                            "T9DBG RIME_COMPOSITION FINAL: " +
+                                "prefix=[$prefix], " +
+                                "candidate=[$candidate], " +
+                                "finalText=[$finalText]",
+                        )
+                    }
 
                     val ic = currentInputConnection
 
@@ -1043,12 +1053,14 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
                 text
             }
 
-        Timber.d(
-            "T9DBG updateComposingText: " +
-                "rimeText=[$text], " +
-                "prefix=[$prefix], " +
-                "displayText=[$displayText]",
-        )
+        if (T9InputController.DEBUG_LOG) {
+            Timber.d(
+                "T9DBG updateComposingText: " +
+                    "rimeText=[$text], " +
+                    "prefix=[$prefix], " +
+                    "displayText=[$displayText]",
+            )
+        }
 
         ic.beginBatchEdit()
 

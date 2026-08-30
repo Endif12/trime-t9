@@ -59,9 +59,27 @@ class T9PinyinView(
         onPinyinSelected = listener
     }
 
+    // 视图池：按键频率高，避免每次候选更新都销毁重建 TextView
+    private val pooledItems = ArrayDeque<TextView>()
+    private val pooledDividers = ArrayDeque<TextView>()
+
+    private var lastShownTokens: List<T9InputController.PinYinToken> = emptyList()
+
     fun updateItems(
         items: List<T9InputController.PinYinToken>,
     ) {
+        // 内容未变化（重复回调），跳过重建
+        if (items == lastShownTokens) {
+            visibility = if (items.isEmpty()) GONE else VISIBLE
+            return
+        }
+        lastShownTokens = items
+
+        // 当前子视图回收入池（可点击的是候选项，否则是分隔符）
+        for (i in 0 until container.childCount) {
+            val v = container.getChildAt(i) as TextView
+            if (v.isClickable) pooledItems.addLast(v) else pooledDividers.addLast(v)
+        }
         container.removeAllViews()
 
         if (items.isEmpty()) {
@@ -72,22 +90,26 @@ class T9PinyinView(
         visibility = VISIBLE
 
         items.forEachIndexed { index, token ->
-            val item = createItem(token)
+            val item =
+                pooledItems.removeFirstOrNull()
+                    ?: createItemView()
+            bindItem(item, token)
             container.addView(item)
 
             if (index < items.lastIndex) {
-                container.addView(createDivider())
+                val divider =
+                    pooledDividers.removeFirstOrNull()
+                        ?: createDividerView()
+                container.addView(divider)
             }
         }
 
+        // 多余的视图留池复用
         container.requestLayout()
         requestLayout()
     }
 
-    private fun createItem(
-        token: T9InputController.PinYinToken,
-    ): TextView = TextView(context).apply {
-        text = token.pinYin
+    private fun createItemView(): TextView = TextView(context).apply {
         setTextColor(textColor)
         textSize = this@T9PinyinView.textSize
         typeface = textFont
@@ -110,12 +132,20 @@ class T9PinyinView(
                 ViewGroup.LayoutParams.MATCH_PARENT,
             )
 
-        setOnClickListener {
-            onPinyinSelected?.invoke(token)
+        setOnClickListener { v ->
+            onPinyinSelected?.invoke(v.tag as T9InputController.PinYinToken)
         }
     }
 
-    private fun createDivider(): TextView = TextView(context).apply {
+    private fun bindItem(
+        view: TextView,
+        token: T9InputController.PinYinToken,
+    ) {
+        view.text = token.pinYin
+        view.tag = token
+    }
+
+    private fun createDividerView(): TextView = TextView(context).apply {
         text = "│"
         setTextColor(textColor)
         alpha = 0.4f

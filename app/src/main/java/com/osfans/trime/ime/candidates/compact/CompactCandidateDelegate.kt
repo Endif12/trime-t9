@@ -1,4 +1,4 @@
-/*
+﻿/*
  * SPDX-FileCopyrightText: 2015 - 2025 Rime community
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
@@ -26,6 +26,7 @@ import com.osfans.trime.ime.candidates.unrolled.decoration.FlexboxVerticalDecora
 import com.osfans.trime.ime.core.InputView
 import com.osfans.trime.ime.core.TrimeInputMethodService
 import com.osfans.trime.ime.dependency.InputDependencyManager
+import com.osfans.trime.ime.t9.T9InputController
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -97,13 +98,15 @@ class CompactCandidateDelegate : InputBroadcastReceiver {
                     val candidateText = items[position].text
                     val beforeRaw = it.getRawInput()
 
-                    Timber.d(
-                        "T9DBG CANDIDATE_CLICK BEFORE: " +
-                            "position=$position, " +
-                            "candidate=[$candidateText], " +
-                            "beforeRaw=[$beforeRaw], " +
-                            "controller=${service.t9InputController.debugState()}",
-                    )
+                    if (T9InputController.DEBUG_LOG) {
+                        Timber.d(
+                            "T9DBG CANDIDATE_CLICK BEFORE: " +
+                                "position=$position, " +
+                                "candidate=[$candidateText], " +
+                                "beforeRaw=[$beforeRaw], " +
+                                "controller=${service.t9InputController.debugState()}",
+                        )
+                    }
 
                     service.t9InputController.onCandidateClicked(candidateText)
 
@@ -113,14 +116,16 @@ class CompactCandidateDelegate : InputBroadcastReceiver {
                     val preedit = it.compositionCached.preedit.orEmpty()
                     val preview = it.compositionCached.commitTextPreview.orEmpty()
 
-                    Timber.d(
-                        "T9DBG CANDIDATE_CLICK AFTER: " +
-                            "result=$result, " +
-                            "afterRaw=[$afterRaw], " +
-                            "preedit=[$preedit], " +
-                            "preview=[$preview], " +
-                            "controller=${service.t9InputController.debugState()}",
-                    )
+                    if (T9InputController.DEBUG_LOG) {
+                        Timber.d(
+                            "T9DBG CANDIDATE_CLICK AFTER: " +
+                                "result=$result, " +
+                                "afterRaw=[$afterRaw], " +
+                                "preedit=[$preedit], " +
+                                "preview=[$preview], " +
+                                "controller=${service.t9InputController.debugState()}",
+                        )
+                    }
                 }
             }
         }

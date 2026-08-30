@@ -1,4 +1,4 @@
-package com.osfans.trime.ime.t9
+﻿package com.osfans.trime.ime.t9
 
 import android.view.KeyEvent
 import com.osfans.trime.core.RimeMessage
@@ -55,6 +55,9 @@ class T9InputController(
     companion object {
         const val SEGMENT_KEY_CHAR = '\''
         const val SEGMENT_KEY_CHAR_ALIAS = '1'
+
+        /** T9 调试日志总开关：logcat 排查时置 true，日常输入置 false（每次按键会产生大量日志与字符串拼接） */
+        const val DEBUG_LOG = false
     }
 
     init {
@@ -564,12 +567,14 @@ class T9InputController(
 
         pendingCandidateCommit = text
 
-        Timber.d(
-            "T9DBG onCandidateClicked: " +
-                "text=[$text], " +
-                "pendingCandidateCommit=[$pendingCandidateCommit], " +
-                debugState(),
-        )
+        if (DEBUG_LOG) {
+            Timber.d(
+                "T9DBG onCandidateClicked: " +
+                    "text=[$text], " +
+                    "pendingCandidateCommit=[$pendingCandidateCommit], " +
+                    debugState(),
+            )
+        }
     }
 
     fun onEscape(): Boolean {
@@ -796,29 +801,35 @@ class T9InputController(
             lastRimeSelEnd = selEnd
             syncT9CursorFromRime(preedit, cursorPos)
         }
-        Timber.d(
-            "T9DBG onCompositionUpdated ENTER: " +
-                "preedit=[$preedit], cursor=$cursorPos sel=$selStart-$selEnd, " +
-                debugState(),
-        )
+        if (DEBUG_LOG) {
+            Timber.d(
+                "T9DBG onCompositionUpdated ENTER: " +
+                    "preedit=[$preedit], cursor=$cursorPos sel=$selStart-$selEnd, " +
+                    debugState(),
+            )
+        }
 
         val pendingCandidate = pendingCandidateCommit
 
         if (pendingCandidate != null && preedit.isNotEmpty()) {
             pendingCandidateCommit = null
 
-            Timber.d(
-                "T9DBG onCompositionUpdated PENDING CANDIDATE -> PARTIAL: " +
-                    "candidate=[$pendingCandidate], " +
-                    "preedit=[$preedit]",
-            )
+            if (DEBUG_LOG) {
+                Timber.d(
+                    "T9DBG onCompositionUpdated PENDING CANDIDATE -> PARTIAL: " +
+                        "candidate=[$pendingCandidate], " +
+                        "preedit=[$preedit]",
+                )
+            }
         }
 
         if (preedit.isEmpty()) {
-            Timber.d(
-                "T9DBG onCompositionUpdated EMPTY -> keep T9 state: " +
-                    debugState(),
-            )
+            if (DEBUG_LOG) {
+                Timber.d(
+                    "T9DBG onCompositionUpdated EMPTY -> keep T9 state: " +
+                        debugState(),
+                )
+            }
             lastRimeInput = ""
             return
         }
@@ -927,12 +938,14 @@ class T9InputController(
                     }
                 }
 
-                Timber.d(
-                    "T9DBG onCompositionUpdated PREFIX: " +
-                        "prefix=[$prefix], " +
-                        "committedPrefix=[$committedPrefix], " +
-                        "committedPrefixDigits=[$committedPrefixDigits]",
-                )
+                if (DEBUG_LOG) {
+                    Timber.d(
+                        "T9DBG onCompositionUpdated PREFIX: " +
+                            "prefix=[$prefix], " +
+                            "committedPrefix=[$committedPrefix], " +
+                            "committedPrefixDigits=[$committedPrefixDigits]",
+                    )
+                }
 
                 cachedInputString = remainingDigits
 
@@ -954,10 +967,12 @@ class T9InputController(
 
                 lastRimeInput = preedit
 
-                Timber.d(
-                    "T9DBG onCompositionUpdated APPLY: " +
-                        debugState(),
-                )
+                if (DEBUG_LOG) {
+                    Timber.d(
+                        "T9DBG onCompositionUpdated APPLY: " +
+                            debugState(),
+                    )
+                }
 
                 fireCandidatesChanged()
                 return
@@ -968,10 +983,12 @@ class T9InputController(
     }
 
     fun onRimeCommitText(text: String) {
-        Timber.d(
-            "T9DBG onRimeCommitText IGNORED: text=[$text], " +
-                "controller=${debugState()}",
-        )
+        if (DEBUG_LOG) {
+            Timber.d(
+                "T9DBG onRimeCommitText IGNORED: text=[$text], " +
+                    "controller=${debugState()}",
+            )
+        }
     }
 
     fun onSegmentKey(): Boolean {
@@ -1045,11 +1062,13 @@ class T9InputController(
         raw: String,
         pinYin: String,
     ) {
-        Timber.d(
-            "T9DBG onSelectPinyin ENTER: " +
-                "pos=$pos, raw=[$raw], pinYin=[$pinYin], " +
-                debugState(),
-        )
+        if (DEBUG_LOG) {
+            Timber.d(
+                "T9DBG onSelectPinyin ENTER: " +
+                    "pos=$pos, raw=[$raw], pinYin=[$pinYin], " +
+                    debugState(),
+            )
+        }
         val token =
             PinYinToken(
                 pos = pos,
@@ -1067,10 +1086,12 @@ class T9InputController(
         }
 
         behaviorQueue.add(Behavior.SELECT_PINYIN)
-        Timber.d(
-            "T9DBG onSelectPinyin AFTER QUEUE: " +
-                debugState(),
-        )
+        if (DEBUG_LOG) {
+            Timber.d(
+                "T9DBG onSelectPinyin AFTER QUEUE: " +
+                    debugState(),
+            )
+        }
         // 保持光标：若光标在已选段后则保持，否则移到选段末尾
         val tokenEnd = pos + raw.length
         if (t9CursorPos < tokenEnd) {
@@ -1121,17 +1142,21 @@ class T9InputController(
     }
 
     fun buildRimeInput(): String {
-        Timber.d(
-            "T9DBG buildRimeInput ENTER: " +
-                debugState(),
-        )
+        if (DEBUG_LOG) {
+            Timber.d(
+                "T9DBG buildRimeInput ENTER: " +
+                    debugState(),
+            )
+        }
 
         val input = cachedInputString
 
         if (selectedQueue.isEmpty()) {
-            Timber.d(
-                "T9DBG buildRimeInput RESULT: [$input], selectedQueue empty",
-            )
+            if (DEBUG_LOG) {
+                Timber.d(
+                    "T9DBG buildRimeInput RESULT: [$input], selectedQueue empty",
+                )
+            }
             return input
         }
 
@@ -1183,11 +1208,13 @@ class T9InputController(
             .append(input.substring(end))
             .toString()
 
-        Timber.d(
-            "T9DBG buildRimeInput RESULT: " +
-                "[$finalResult], " +
-                debugState(),
-        )
+        if (DEBUG_LOG) {
+            Timber.d(
+                "T9DBG buildRimeInput RESULT: " +
+                    "[$finalResult], " +
+                    debugState(),
+            )
+        }
 
         return finalResult
     }
@@ -1195,11 +1222,13 @@ class T9InputController(
     fun updateRimeInput() {
         val input = buildRimeInput()
 
-        Timber.d(
-            "T9DBG updateRimeInput: " +
-                "setRawInput=[$input], " +
-                debugState(),
-        )
+        if (DEBUG_LOG) {
+            Timber.d(
+                "T9DBG updateRimeInput: " +
+                    "setRawInput=[$input], " +
+                    debugState(),
+            )
+        }
         lastRimeInput = input
         rime.lifecycleScope.launch {
             rime.runOnReady {
