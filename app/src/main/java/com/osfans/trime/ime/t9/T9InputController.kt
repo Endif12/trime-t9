@@ -823,6 +823,12 @@ class T9InputController(
             return
         }
 
+        // 同一 preedit 的重复回调（Service 与 InputBar 都会转发同一条消息）：
+        // 前缀已解析过，直接跳过，避免 Rime 侧转换的汉字被重复追加进前缀
+        if (preedit == lastRimeInput) {
+            return
+        }
+
         // 查找首个非汉字字符，分离已提交汉字前缀与后续拼音/数字
         val firstNonHanIndex = preedit.indexOfFirst {
             Character.UnicodeScript.of(it.code) != Character.UnicodeScript.HAN
@@ -1217,6 +1223,25 @@ class T9InputController(
     }
 
     fun getCommittedPrefix(): String = committedPrefix
+
+    /**
+     * 组装最终上屏文本：
+     * committedPrefix = T9 侧维护的前缀（经 setRawInput 替换后 Rime 不知道的部分，
+     * 如“什么”）+ Rime 侧自行转换汉字的镜像（如空格分段确认出的“依法”）。
+     * Rime 的提交文本已包含 Rime 侧部分，只需补上 T9 侧前缀，否则会重复
+     */
+    fun buildCommitText(rimeText: String): String {
+        if (!hasT9State() || rimeText.isEmpty() || committedPrefix.isEmpty()) return rimeText
+        if (rimeText.startsWith(committedPrefix)) return rimeText
+        val rimeHan =
+            lastRimeInput.takeWhile {
+                Character.UnicodeScript.of(it.code) == Character.UnicodeScript.HAN
+            }
+        if (rimeHan.isNotEmpty() && rimeText.startsWith(rimeHan) && committedPrefix.endsWith(rimeHan)) {
+            return committedPrefix.dropLast(rimeHan.length) + rimeText
+        }
+        return committedPrefix + rimeText
+    }
 
     fun hasPendingCandidateCommit(): Boolean = pendingCandidateCommit != null
 
