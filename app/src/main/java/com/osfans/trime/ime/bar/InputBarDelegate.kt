@@ -71,8 +71,15 @@ class InputBarDelegate : InputBroadcastReceiver {
     private val commonKeyboardActionListener: CommonKeyboardActionListener by di.instance()
     private val candidate: CompactCandidateDelegate by di.instance()
     private val rime: RimeSession by di.instance()
-    private val t9PinyinHeight =
-        context.dp(theme.generalStyle.candidateViewHeight)
+
+    // 主题原始 dp 值。注意：InputView 添加输入条时会统一做 dp->px 换算，
+    // 这里必须保持原始 dp，否则会双重换算把输入条撑大数倍（候选栏下方出现大片空白）
+    private val t9PinyinHeight = theme.generalStyle.candidateViewHeight
+
+    private val baseThemedHeight = theme.generalStyle.candidateViewHeight
+
+    // 输入条总高 = 候选栏高度 + 九宫格拼音栏（原始 dp）
+    val themedHeight = baseThemedHeight + t9PinyinHeight
 
     private val t9PinyinUi =
         T9PinyinView(
@@ -89,12 +96,6 @@ class InputBarDelegate : InputBroadcastReceiver {
                 )
             }
         }
-
-    private val baseThemedHeight =
-        context.dp(theme.generalStyle.candidateViewHeight)
-
-    // 输入条总高 = 候选栏高度 + 九宫格拼音栏
-    val themedHeight = baseThemedHeight + t9PinyinHeight
 
     private val prefs = AppPrefs.defaultInstance()
 
@@ -319,7 +320,7 @@ class InputBarDelegate : InputBroadcastReceiver {
                 t9PinyinUi,
                 LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
-                    t9PinyinHeight,
+                    context.dp(t9PinyinHeight),
                 ),
             )
 
@@ -327,7 +328,7 @@ class InputBarDelegate : InputBroadcastReceiver {
                 candidateUi.root,
                 LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
-                    baseThemedHeight,
+                    context.dp(baseThemedHeight),
                 ),
             )
         }
