@@ -8,11 +8,13 @@ package com.osfans.trime.ime.core
 import android.annotation.SuppressLint
 import android.os.Build
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InlineSuggestionsResponse
 import android.widget.ImageView
 import androidx.annotation.RequiresApi
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.updateLayoutParams
@@ -199,8 +201,12 @@ class InputView(
         updateWindowViewHeightJob =
             service.lifecycleScope.launch {
                 keyboardWindow.currentKeyboardHeight.collect {
-                    windowManager.view.updateLayoutParams {
-                        height = it
+                    windowManager.view.updateLayoutParams<ConstraintLayout.LayoutParams> {
+                        // 高度跟随窗口实际内容，上限为主题键盘高度：
+                        // 键盘行数较少（如四行九宫格）时若仍固定为 keyboard_height，
+                        // 输入条与键盘之间会留出大片无法使用的空白
+                        height = ViewGroup.LayoutParams.WRAP_CONTENT
+                        maxHeight = it
                     }
                 }
             }
