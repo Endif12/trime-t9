@@ -19,6 +19,7 @@ import android.widget.inline.InlineContentView
 import androidx.annotation.Keep
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
+import androidx.core.view.updateLayoutParams
 import androidx.lifecycle.lifecycleScope
 import com.osfans.trime.R
 import com.osfans.trime.core.Candidates
@@ -80,6 +81,16 @@ class InputBarDelegate : InputBroadcastReceiver {
 
     // 输入条总高 = 候选栏高度 + 九宫格拼音栏（原始 dp）
     val themedHeight = baseThemedHeight + t9PinyinHeight
+
+    /** 仅当前方案 id/名称包含 "t9"（不区分大小写）时启用拼音栏 */
+    val isT9Schema: Boolean
+        get() = runCatching { rime.run { statusCached } }.getOrNull()
+            ?.let { it.schemaId.contains("t9", true) || it.schemaName.contains("t9", true) }
+            ?: false
+
+    /** 当前输入条应有的总高（原始 dp）：九宫格方案两行，其余一行 */
+    val currentThemedHeight: Int
+        get() = if (isT9Schema) themedHeight else baseThemedHeight
 
     private val t9PinyinUi =
         T9PinyinView(
@@ -280,7 +291,8 @@ class InputBarDelegate : InputBroadcastReceiver {
 
             service.t9InputController.onCandidatesChanged = { tokens ->
                 t9PinyinUi.post {
-                    t9PinyinUi.updateItems(tokens)
+                    // 仅九宫格方案显示拼音栏；其余方案或无拼音时隐藏，候选行占满整个输入条
+                    t9PinyinUi.updateItems(if (isT9Schema) tokens else emptyList())
                 }
                 if (tokens.isNotEmpty()) {
                     barStateMachine.push(
@@ -316,6 +328,7 @@ class InputBarDelegate : InputBroadcastReceiver {
         LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
 
+            // 拼音行：固定高度；非九宫格方案或无拼音候选时隐藏（隐藏后候选行 weight 撑满剩余空间）
             addView(
                 t9PinyinUi,
                 LinearLayout.LayoutParams(
@@ -324,11 +337,14 @@ class InputBarDelegate : InputBroadcastReceiver {
                 ),
             )
 
+            // 候选行：weight=1 填满剩余高度
+            // 拼音栏可见时 = 候选栏高度；拼音栏隐藏时占满整个输入条（两行）
             addView(
                 candidateUi.root,
                 LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
-                    context.dp(baseThemedHeight),
+                    0,
+                    1f,
                 ),
             )
         }
@@ -336,6 +352,31 @@ class InputBarDelegate : InputBroadcastReceiver {
 
     override fun onStartInput(info: EditorInfo) {
         evalAlwaysUiState()
+        applyBarHeight()
+    }
+
+    override fun onRimeSchemaUpdated(schema: com.osfans.trime.core.SchemaItem) {
+        // 方案切换时同步拼音栏可见性与输入条高度（两行 <-> 一行）
+        if (!isT9Schema) {
+            t9PinyinUi.post { t9PinyinUi.updateItems(emptyList()) }
+        }
+        applyBarHeight()
+    }
+
+    override fun onInputStatusUpdate(value: com.osfans.trime.core.StatusProto) {
+        applyBarHeight()
+    }
+
+    /** 输入条总高随方案变化：九宫格两行（拼音+候选），其它一行（仅候选） */
+    private fun applyBarHeight() {
+        val heightPx = context.dp(currentThemedHeight)
+        if (view.height == heightPx) return
+        view.updateLayoutParams { height = heightPx }
+        // 非九宫格方案强制隐藏拼音栏
+        if (!isT9Schema) {
+            t9PinyinUi.visibility = View.GONE
+        }
+        view.requestLayout()
     }
 
     override fun onWindowAttached(window: BoardWindow) {
