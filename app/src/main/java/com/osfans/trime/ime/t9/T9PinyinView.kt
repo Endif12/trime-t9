@@ -3,16 +3,16 @@ package com.osfans.trime.ime.t9
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.osfans.trime.data.theme.ColorManager
+import com.osfans.trime.data.theme.FontManager
 import com.osfans.trime.data.theme.Theme
-import com.osfans.trime.util.sp
 import splitties.dimensions.dp
+import splitties.views.horizontalPadding
 
 class T9PinyinView(
     context: Context,
@@ -34,41 +34,21 @@ class T9PinyinView(
         }
     }
 
-    private val highlightedTextColor: Int by lazy {
-        runCatching {
-            ColorManager.getColor("hilited_candidate_text_color")
-        }.getOrElse {
-            textColor
-        }
-    }
+    private val textSize: Float = theme.generalStyle.candidateTextSize
 
-    private val highlightedBackColor: Int by lazy {
-        runCatching {
-            ColorManager.getColor("hilited_candidate_back_color")
-        }.getOrElse {
-            Color.TRANSPARENT
-        }
-    }
-
-    private val textFont: Typeface by lazy {
-        Typeface.create("sans-serif", Typeface.NORMAL)
-    }
-
-    private val textSize: Float by lazy {
-        sp(theme.window.foreground.textFontSize)
-    }
+    private val textFont: Typeface = FontManager.getTypeface("candidate_font")
 
     init {
         isHorizontalScrollBarEnabled = false
         overScrollMode = OVER_SCROLL_NEVER
         isFillViewport = false
-        setBackgroundColor(Color.rgb(255, 180, 0))
+        horizontalPadding = dp(4)
 
         addView(
             container,
             ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
             ),
         )
     }
@@ -108,15 +88,27 @@ class T9PinyinView(
         token: T9InputController.PinYinToken,
     ): TextView = TextView(context).apply {
         text = token.pinYin
-        setTextColor(Color.BLACK)
-        textSize = 20f
-        typeface = Typeface.DEFAULT
+        setTextColor(textColor)
+        textSize = this@T9PinyinView.textSize
+        typeface = textFont
         gravity = Gravity.CENTER
         includeFontPadding = false
-        transformationMethod = null
 
         isClickable = true
         isFocusable = false
+
+        setPadding(
+            dp(6),
+            0,
+            dp(6),
+            0,
+        )
+
+        layoutParams =
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            )
 
         setOnClickListener {
             onPinyinSelected?.invoke(token)
@@ -125,21 +117,11 @@ class T9PinyinView(
 
     private fun createDivider(): TextView = TextView(context).apply {
         text = "│"
-        setTextColor(highlightedTextColor)
-        textSize = this@T9PinyinView.textSize * 0.8f
+        setTextColor(textColor)
+        alpha = 0.4f
+        textSize = this@T9PinyinView.textSize * 0.7f
         gravity = Gravity.CENTER
-
-        layoutParams = LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            ViewGroup.LayoutParams.MATCH_PARENT,
-        )
-
-        setPadding(
-            dp(2),
-            0,
-            dp(2),
-            0,
-        )
+        includeFontPadding = false
 
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
     }

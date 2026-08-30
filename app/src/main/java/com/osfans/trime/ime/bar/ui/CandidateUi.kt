@@ -6,7 +6,6 @@ package com.osfans.trime.ime.bar.ui
 
 import android.content.Context
 import android.view.View
-import android.view.ViewGroup
 import com.osfans.trime.R
 import com.osfans.trime.data.theme.Theme
 import splitties.dimensions.dp
@@ -40,10 +39,7 @@ class CandidateUi(
             )
             add(
                 compatView,
-                lParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    dp(theme.generalStyle.candidateViewHeight),
-                ) {
+                lParams {
                     centerVertically()
                     startOfParent(dp(theme.generalStyle.candidatePadding / 2))
                     before(unrollButton)

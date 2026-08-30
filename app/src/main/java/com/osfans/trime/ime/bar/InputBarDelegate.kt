@@ -71,7 +71,8 @@ class InputBarDelegate : InputBroadcastReceiver {
     private val commonKeyboardActionListener: CommonKeyboardActionListener by di.instance()
     private val candidate: CompactCandidateDelegate by di.instance()
     private val rime: RimeSession by di.instance()
-    private val t9PinyinHeight = context.dp(64)
+    private val t9PinyinHeight =
+        context.dp(theme.generalStyle.candidateViewHeight)
 
     private val t9PinyinUi =
         T9PinyinView(
@@ -90,8 +91,9 @@ class InputBarDelegate : InputBroadcastReceiver {
         }
 
     private val baseThemedHeight =
-        context.dp(theme.generalStyle.candidateViewHeight)
+        context.dp(theme.generalStyle.run { candidateViewHeight + commentHeight })
 
+    // 输入条总高 = 原候选栏高度（candidate_view_height + comment_height）+ 九宫格拼音栏
     val themedHeight = baseThemedHeight + t9PinyinHeight
 
     private val prefs = AppPrefs.defaultInstance()
