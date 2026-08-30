@@ -739,6 +739,8 @@ class T9InputController(
             if (b in 1..cachedInputString.length) result.add(b)
         }
         for (tok in selectedQueue) {
+            // token 的起始边界：未选中数字与拼音之间可插入光标
+            if (tok.pos in 1..cachedInputString.length) result.add(tok.pos)
             val end = tok.pos + tok.raw.length
             if (end in 1..cachedInputString.length) result.add(end)
         }
@@ -1042,14 +1044,21 @@ class T9InputController(
                 "pos=$pos, raw=[$raw], pinYin=[$pinYin], " +
                 debugState(),
         )
-        selectedQueue.add(
+        val token =
             PinYinToken(
                 pos = pos,
                 raw = raw,
                 pinYin = pinYin,
                 group = nextGroupId++,
-            ),
-        )
+            )
+        // 按 pos 插入以保持队列有序（buildRimeInput 依赖队列顺序渲染），
+        // 光标在中间选音时新 token 可能位于已有 token 之前
+        val insertIndex = selectedQueue.indexOfFirst { it.pos > pos }
+        if (insertIndex < 0) {
+            selectedQueue.addLast(token)
+        } else {
+            selectedQueue.add(insertIndex, token)
+        }
 
         behaviorQueue.add(Behavior.SELECT_PINYIN)
         Timber.d(
