@@ -224,7 +224,14 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
                             )
                         } else {
                             val prefix = t9InputController.getCommittedPrefix()
-                            val toCommit = prefix + text
+                            // 前缀可能已由 Rime 在其自身输入内转换（如候选栏点选后空格上屏），
+                            // 此时 Rime 提交的文本已包含前缀，不能再拼接，否则会出现“是是的”
+                            val toCommit =
+                                if (prefix.isNotEmpty() && text.startsWith(prefix)) {
+                                    text
+                                } else {
+                                    prefix + text
+                                }
                             Timber.d(
                                 "T9DBG RIME_COMMIT_T9: text=[$text], prefix=[$prefix], toCommit=[$toCommit], " +
                                     "controller=${t9InputController.debugState()}",
