@@ -364,17 +364,14 @@ class CommonKeyboardActionListener {
                 keyEventCode: Int,
                 metaState: Int,
             ) {
-                if (keyboardWindow.isT9Keyboard) {
+                // 仅拦截无修饰键的单击（九宫格数字/退格等）；
+                // 带 Ctrl/Shift 等修饰的按键（如切方案热键 Control+Shift+6）放行给 Rime 处理，
+                // 否则会被下面的数字拦截误当成九宫格数字（如左下角 Schema_luna 键变成输入 6）
+                if (keyboardWindow.isT9Keyboard && metaState == 0) {
                     when (keyEventCode) {
                         in KeyEvent.KEYCODE_2..KeyEvent.KEYCODE_9 -> {
                             val digit = (keyEventCode - KeyEvent.KEYCODE_0).toString()
                             service.t9InputController.onDigitKey(digit)
-
-                            Toast.makeText(
-                                service,
-                                "T9 digit=$digit candidates=${service.t9InputController.computeCandidates().size}",
-                                Toast.LENGTH_SHORT,
-                            ).show()
                             return
                         }
 
