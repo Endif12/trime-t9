@@ -91,9 +91,9 @@ class InputBarDelegate : InputBroadcastReceiver {
         }
 
     private val baseThemedHeight =
-        context.dp(theme.generalStyle.run { candidateViewHeight + commentHeight })
+        context.dp(theme.generalStyle.candidateViewHeight)
 
-    // 输入条总高 = 原候选栏高度（candidate_view_height + comment_height）+ 九宫格拼音栏
+    // 输入条总高 = 候选栏高度 + 九宫格拼音栏
     val themedHeight = baseThemedHeight + t9PinyinHeight
 
     private val prefs = AppPrefs.defaultInstance()
