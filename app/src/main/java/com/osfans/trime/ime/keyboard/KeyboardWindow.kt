@@ -122,7 +122,10 @@ class KeyboardWindow :
         }
 
         keyboard.also {
-            runBlocking { _currentKeyboardHeight.emit(it.keyboardHeight) }
+            // 上报键盘“实际绘制高度”（按键行累计值）而非配置声明值 keyboardHeight：
+            // 自定义布局（如九宫格）下二者可能不一致，
+            // 容器若用声明值会比键盘实际内容多出一段空白
+            runBlocking { _currentKeyboardHeight.emit(it.height) }
             if (it.isLock) lastLockKeyboardId = target
             dispatchCapsState(it::setShifted)
 
